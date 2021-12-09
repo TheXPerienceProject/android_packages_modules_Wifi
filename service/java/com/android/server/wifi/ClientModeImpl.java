@@ -1417,8 +1417,12 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
      * mark network agent as disconnected and stop the ip client.
      */
     public void handleIfaceDestroyed() {
-        handleNetworkDisconnect(false,
-                WifiStatsLog.WIFI_DISCONNECT_REPORTED__FAILURE_CODE__IFACE_DESTROYED);
+        mWifiThreadRunner.call(
+            () -> {
+                handleNetworkDisconnect(false,
+                       WifiStatsLog.WIFI_DISCONNECT_REPORTED__FAILURE_CODE__IFACE_DESTROYED);
+                return true;
+            }, false);
     }
 
     /** Stop this ClientModeImpl. Do not interact with ClientModeImpl after it has been stopped. */
@@ -4504,6 +4508,12 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
                     handleStatus = handleL3MessagesWhenNotConnected(message);
                     break;
                 }
+                case WifiMonitor.TRANSITION_DISABLE_INDICATION: {
+                    log("Received TRANSITION_DISABLE_INDICATION: networkId=" + message.arg1
+                            + ", indication=" + message.arg2);
+                    mWifiConfigManager.updateNetworkTransitionDisable(message.arg1, message.arg2);
+                    break;
+                }
                 default: {
                     handleStatus = NOT_HANDLED;
                     break;
@@ -4794,12 +4804,6 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
                                 WifiStatsLog.WIFI_DISCONNECT_REPORTED__FAILURE_CODE__CONNECTING_WATCHDOG_TIMER);
                         transitionTo(mDisconnectedState);
                     }
-                    break;
-                }
-                case WifiMonitor.TRANSITION_DISABLE_INDICATION: {
-                    log("Received TRANSITION_DISABLE_INDICATION: networkId=" + message.arg1
-                            + ", indication=" + message.arg2);
-                    mWifiConfigManager.updateNetworkTransitionDisable(message.arg1, message.arg2);
                     break;
                 }
                 case WifiMonitor.NETWORK_CONNECTION_EVENT: {
