@@ -1466,8 +1466,9 @@ public class HalDeviceManager {
         @Override
         public void onFailure(WifiStatus status) throws RemoteException {
             mEventHandler.post(() -> {
-                Log.e(TAG, "IWifiEventCallback.onFailure: " + statusString(status));
+                Log.e(TAG, "IWifiEventCallback.onFailure2: " + statusString(status));
                 synchronized (mLock) {
+                    mWifi = null;
                     mIsReady = false;
                     teardownInternal();
                 }
@@ -2056,6 +2057,31 @@ public class HalDeviceManager {
         for (WifiIfaceInfo ifaceInfo : ifaceInfosForExistingIfaceType) {
             int newRequestorWsPriority = getRequestorWsPriority(newRequestorWsHelper);
             int existingRequestorWsPriority = getRequestorWsPriority(ifaceInfo.requestorWsHelper);
+            if (SdkLevel.isAtLeastS()) {
+                // Special handling for secondray STA request
+                if ((requestedIfaceType == IfaceType.STA &&
+                         existingIfaces[IfaceType.STA].length > 0) &&
+                     (existingIfaceType == IfaceType.P2P ||
+                         existingIfaceType == IfaceType.NAN ||
+                         existingIfaceType == IfaceType.AP)) {
+                    if (newRequestorWsPriority <= PRIORITY_SYSTEM) {
+                        // if secondary STA request is from system, and existing iface is same
+                        // or more priority, do not terminate existing iface.
+                        if (existingRequestorWsPriority <= newRequestorWsPriority) {
+                            Log.d(TAG, "allowedToDeleteIfaceTypeForRequestedType: STA2 WsPriority "
+                                 + newRequestorWsPriority + " not gt than exsit iface WsPriority "
+                                 + existingRequestorWsPriority);
+                            continue;
+                        }
+                    } else {
+                        // if secondary STA request is from user app or service, no matter existing
+                        // iface priority, do not terminate existing iface.
+                        Log.d(TAG, "allowedToDeleteIfaceTypeForRequestedType: STA2 Ws from "
+                                 + "user app or service, do not terminate existing iface.");
+                        continue;
+                    }
+                }
+            }
             if (allowedToDelete(
                     requestedIfaceType, newRequestorWsPriority, existingIfaceType,
                     existingRequestorWsPriority)) {
