@@ -57,6 +57,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1001,7 +1002,7 @@ public class HalDeviceManager {
                                 @Override
                                 public void onChipReconfigureFailure(WifiStatus status)
                                         throws RemoteException {
-                                    Log.d(TAG, "onChipReconfigureFailure: status=" + statusString(
+                                    Log.e(TAG, "onChipReconfigureFailure: status=" + statusString(
                                             status));
                                 }
 
@@ -1496,9 +1497,13 @@ public class HalDeviceManager {
 
         @Override
         public void onSubsystemRestart(WifiStatus status) throws RemoteException {
+            Log.i(TAG, "onSubsystemRestart");
             mEventHandler.post(() -> {
+                Log.i(TAG, "IWifiEventCallback.onSubsystemRestart: " + statusString(status));
                 synchronized (mLock) {
+                    Log.i(TAG, "Attempting to invoke mSubsystemRestartListener");
                     for (SubsystemRestartListenerProxy cb : mSubsystemRestartListener) {
+                        Log.i(TAG, "Invoking mSubsystemRestartListener");
                         cb.action();
                     }
                 }
@@ -1665,7 +1670,13 @@ public class HalDeviceManager {
             if (bestIfaceCreationProposal != null) {
                 IWifiIface iface = executeChipReconfiguration(bestIfaceCreationProposal,
                         createIfaceType);
-                if (iface != null) {
+                if (iface == null) {
+                    // If the chip reconfiguration failed, we'll need to clean up internal state.
+                    Log.e(TAG, "Teardown Wifi internal state");
+                    mWifi = null;
+                    mIsReady = false;
+                    teardownInternal();
+                } else {
                     InterfaceCacheEntry cacheEntry = new InterfaceCacheEntry();
 
                     cacheEntry.chip = bestIfaceCreationProposal.chipInfo.chip;
@@ -1688,7 +1699,7 @@ public class HalDeviceManager {
             }
         }
 
-        Log.d(TAG, "createIfaceIfPossible: Failed to create iface for ifaceType=" + createIfaceType
+        Log.e(TAG, "createIfaceIfPossible: Failed to create iface for ifaceType=" + createIfaceType
                 + ", requestorWs=" + requestorWs);
         return null;
     }
@@ -2368,6 +2379,11 @@ public class HalDeviceManager {
                 return false;
             }
 
+            // dispatch listeners on other threads to prevent race conditions in case the HAL is
+            // blocking and they get notification about destruction from HAL before cleaning up
+            // status.
+            dispatchDestroyedListeners(name, type, true);
+
             WifiStatus status = null;
             try {
                 switch (type) {
@@ -2392,7 +2408,7 @@ public class HalDeviceManager {
             }
 
             // dispatch listeners no matter what status
-            dispatchDestroyedListeners(name, type);
+            dispatchDestroyedListeners(name, type, false);
 
             if (status != null && status.code == WifiStatusCode.SUCCESS) {
                 return true;
@@ -2404,10 +2420,13 @@ public class HalDeviceManager {
     }
 
     // dispatch all destroyed listeners registered for the specified interface AND remove the
-    // cache entry
-    private void dispatchDestroyedListeners(String name, int type) {
+    // cache entries for the called listeners
+    // onlyOnOtherThreads = true: only call listeners on other threads
+    // onlyOnOtherThreads = false: call all listeners
+    private void dispatchDestroyedListeners(String name, int type, boolean onlyOnOtherThreads) {
         if (VDBG) Log.d(TAG, "dispatchDestroyedListeners: iface(name)=" + name);
 
+        List<InterfaceDestroyedListenerProxy> triggerList = new ArrayList<>();
         synchronized (mLock) {
             InterfaceCacheEntry entry = mInterfaceInfoCache.get(Pair.create(name, type));
             if (entry == null) {
@@ -2415,11 +2434,22 @@ public class HalDeviceManager {
                 return;
             }
 
-            for (InterfaceDestroyedListenerProxy listener : entry.destroyedListeners) {
-                listener.trigger();
+            Iterator<InterfaceDestroyedListenerProxy> iterator =
+                    entry.destroyedListeners.iterator();
+            while (iterator.hasNext()) {
+                InterfaceDestroyedListenerProxy listener = iterator.next();
+                if (!onlyOnOtherThreads || !listener.requestedToRunInCurrentThread()) {
+                    triggerList.add(listener);
+                    iterator.remove();
+                }
             }
-            entry.destroyedListeners.clear(); // for insurance (though cache entry is removed)
-            mInterfaceInfoCache.remove(Pair.create(name, type));
+            if (!onlyOnOtherThreads) { // leave entry until final call to *all* callbacks
+                mInterfaceInfoCache.remove(Pair.create(name, type));
+            }
+        }
+
+        for (InterfaceDestroyedListenerProxy listener : triggerList) {
+            listener.trigger();
         }
     }
 
@@ -2459,44 +2489,34 @@ public class HalDeviceManager {
             return mListener.hashCode();
         }
 
-        void trigger() {
-            if (mHandler != null) {
-                // TODO(b/199792691): The thread check is needed to preserve the existing
-                //  assumptions of synchronous execution of the "onDestroyed" callback as much as
-                //  possible. This is needed to prevent regressions caused by posting to the handler
-                //  thread changing the code execution order.
-                //  When all wifi services (ie. WifiAware, WifiP2p) get moved to the wifi handler
-                //  thread, remove this thread check and the Handler#post() and simply always
-                //  invoke the callback directly.
-                long currentTid = mWifiInjector.getCurrentThreadId();
-                long handlerTid = mHandler.getLooper().getThread().getId();
-                if (currentTid == handlerTid) {
-                    // Already running on the same handler thread. Trigger listener synchronously.
-                    action();
-                } else {
-                    // Current thread is not the thread the listener should be invoked on.
-                    // Post action to the intended thread.
-                    mHandler.post(() -> {
-                        action();
-                    });
-                }
-            } else {
-                action();
-            }
+        public boolean requestedToRunInCurrentThread() {
+            if (mHandler == null) return true;
+            long currentTid = mWifiInjector.getCurrentThreadId();
+            long handlerTid = mHandler.getLooper().getThread().getId();
+            return currentTid == handlerTid;
         }
 
-        void triggerWithArg(boolean arg) {
-            if (mHandler != null) {
-                mHandler.post(() -> {
-                    actionWithArg(arg);
-                });
+        void trigger() {
+            // TODO(b/199792691): The thread check is needed to preserve the existing
+            //  assumptions of synchronous execution of the "onDestroyed" callback as much as
+            //  possible. This is needed to prevent regressions caused by posting to the handler
+            //  thread changing the code execution order.
+            //  When all wifi services (ie. WifiAware, WifiP2p) get moved to the wifi handler
+            //  thread, remove this thread check and the Handler#post() and simply always
+            //  invoke the callback directly.
+            if (requestedToRunInCurrentThread()) {
+                // Already running on the same handler thread. Trigger listener synchronously.
+                action();
             } else {
-                actionWithArg(arg);
+                // Current thread is not the thread the listener should be invoked on.
+                // Post action to the intended thread.
+                mHandler.postAtFrontOfQueue(() -> {
+                    action();
+                });
             }
         }
 
         protected void action() {}
-        protected void actionWithArg(boolean arg) {}
 
         ListenerProxy(LISTENER listener, Handler handler, String tag) {
             mListener = listener;
