@@ -332,6 +332,9 @@ public class WifiCountryCode {
      * @return Returns true if the country code passed in is acceptable.
      */
     public boolean setTelephonyCountryCodeAndUpdate(String countryCode) {
+        if (TextUtils.equals(countryCode,"ec"))
+            countryCode = "mx";
+            Log.d(TAG, "CountryCode is EC changing to fix slow connections... ");
         setTelephonyCountryCode(countryCode);
         if (mOverrideCountryCode != null) {
             Log.d(TAG, "Skip Telephony Country code update due to override country code set");
