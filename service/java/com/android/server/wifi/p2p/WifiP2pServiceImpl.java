@@ -3880,7 +3880,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             break;
                         }
                         mSavedPeerConfig = new WifiP2pConfig();
-                        mSavedPeerConfig.wps.setup = WpsInfo.KEYPAD;
+                        mSavedPeerConfig.wps.setup = WpsInfo.DISPLAY;
                         mSavedPeerConfig.deviceAddress = device.deviceAddress;
                         mSavedPeerConfig.wps.pin = provDisc.pin;
                         if (SdkLevel.isAtLeastV() && provDisc.getVendorData() != null) {
@@ -4358,7 +4358,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             break;
                         }
                         mSavedPeerConfig = new WifiP2pConfig();
-                        mSavedPeerConfig.wps.setup = WpsInfo.KEYPAD;
+                        mSavedPeerConfig.wps.setup = WpsInfo.DISPLAY;
                         mSavedPeerConfig.deviceAddress = device.deviceAddress;
                         mSavedPeerConfig.wps.pin = provDisc.pin;
                         if (SdkLevel.isAtLeastV() && provDisc.getVendorData() != null) {
@@ -8492,7 +8492,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             if (WifiP2pManager.CONNECTION_REQUEST_ACCEPT == message.arg1) {
                 if (WifiP2pManager.ExternalApproverRequestListener.REQUEST_TYPE_NEGOTIATION
                         == requestType
-                        && WpsInfo.KEYPAD == mSavedPeerConfig.wps.setup) {
+                        && WpsInfo.DISPLAY == mSavedPeerConfig.wps.setup) {
                     sendMessage(PEER_CONNECTION_USER_CONFIRM);
                 } else {
                     Bundle extras = message.getData().getBundle(
