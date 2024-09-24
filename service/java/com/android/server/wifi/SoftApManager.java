@@ -2345,7 +2345,8 @@ public class SoftApManager implements ActiveModeManager {
                 mWifiNative.isStaApConcurrencySupported(),
                 ApConfigUtil.isStaWithBridgedModeSupported(mContext, mWifiNative),
                 getCurrentStaFreqMhz(),
-                securityType);
+                securityType,
+                mRequestorWs);
     }
 
     private void writeSoftApStoppedEvent(@StopEvent int stopEvent) {
