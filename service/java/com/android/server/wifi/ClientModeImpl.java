@@ -5415,7 +5415,8 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
      * @param bssid BSSID of the AP.
      * @return true if BSSID matches to one of the affiliated link BSSIDs, false otherwise.
      */
-    public boolean isAffiliatedLinkBssid(@NonNull MacAddress bssid) {
+    public boolean isAffiliatedLinkBssid(@Nullable MacAddress bssid) {
+        if (bssid == null) return false;
         List<MloLink> links = mWifiInfo.getAffiliatedMloLinks();
         for (MloLink link: links) {
             if (bssid.equals(link.getApMacAddress())) {
@@ -6954,7 +6955,8 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
                         mWifiCarrierInfoManager.isMobileDataEnabled(),
                         mWifiGlobals.getPollRssiIntervalMillis(),
                         mWifiScoreReport.getAospScorerPredictionStatusForEvaluation(),
-                        mWifiScoreReport.getExternalScorerPredictionStatusForEvaluation());
+                        mWifiScoreReport.getExternalScorerPredictionStatusForEvaluation(),
+                        mWifiScoreReport.getLingering());
                 mWifiScoreReport.clearScorerPredictionStatusForEvaluation();
             }
 
