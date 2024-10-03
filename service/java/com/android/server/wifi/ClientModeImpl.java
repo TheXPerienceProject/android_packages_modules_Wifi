@@ -6968,7 +6968,8 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
                         mWifiGlobals.getPollRssiIntervalMillis(),
                         mWifiScoreReport.getAospScorerPredictionStatusForEvaluation(),
                         mWifiScoreReport.getExternalScorerPredictionStatusForEvaluation(),
-                        mWifiScoreReport.getLingering());
+                        mWifiScoreReport.getLingering(),
+                        mWifiInfo, mLastConnectionCapabilities);
                 mWifiScoreReport.clearScorerPredictionStatusForEvaluation();
             }
 
