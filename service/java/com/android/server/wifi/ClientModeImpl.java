@@ -26,6 +26,7 @@ import static android.net.wifi.WifiManager.WIFI_FEATURE_FILS_SHA384;
 import static android.net.wifi.WifiManager.WIFI_FEATURE_LINK_LAYER_STATS;
 import static android.net.wifi.WifiManager.WIFI_FEATURE_TDLS;
 import static android.net.wifi.WifiManager.WIFI_FEATURE_TRUST_ON_FIRST_USE;
+import static android.net.wifi.WifiManager.WIFI_FEATURE_WPA3_SAE;
 
 import static com.android.server.wifi.ActiveModeManager.ROLE_CLIENT_LOCAL_ONLY;
 import static com.android.server.wifi.ActiveModeManager.ROLE_CLIENT_PRIMARY;
@@ -1659,6 +1660,13 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
     }
 
     /**
+     * @return true if this device supports WPA3_SAE
+     */
+    private boolean isWpa3SaeSupported() {
+        return (getSupportedFeatures() & WIFI_FEATURE_WPA3_SAE) != 0;
+    }
+
+    /**
      * Update interface capabilities
      * This method is used to update some of interface capabilities defined in overlay
      */
@@ -1682,6 +1690,10 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
             if (Flags.getDeviceCrossAkmRoamingSupport() && SdkLevel.isAtLeastV()
                     && cap.getMaxNumberAkms() >= 3) {
                 mWifiGlobals.setWpa3SaeUpgradeOffloadEnabled();
+            }
+            if (SdkLevel.isAtLeastV() && mWifiNative.isSupplicantAidlServiceVersionAtLeast(3)
+                    && isWpa3SaeSupported()) {
+                mWifiGlobals.enableWpa3SaeH2eSupport();
             }
 
             mWifiNative.setDeviceWiphyCapabilities(mInterfaceName, cap);
@@ -4877,6 +4889,7 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
                     if (!isTrustOnFirstUseSupported()) {
                         mInsecureEapNetworkHandler.startUserApprovalIfNecessary(mIsUserSelected);
                     }
+                    mFrameworkDisconnectReasonOverride = 0;
                     connectToNetwork(config);
                     break;
                 }
@@ -5415,7 +5428,8 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
      * @param bssid BSSID of the AP.
      * @return true if BSSID matches to one of the affiliated link BSSIDs, false otherwise.
      */
-    public boolean isAffiliatedLinkBssid(@NonNull MacAddress bssid) {
+    public boolean isAffiliatedLinkBssid(@Nullable MacAddress bssid) {
+        if (bssid == null) return false;
         List<MloLink> links = mWifiInfo.getAffiliatedMloLinks();
         for (MloLink link: links) {
             if (bssid.equals(link.getApMacAddress())) {
@@ -6954,7 +6968,9 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
                         mWifiCarrierInfoManager.isMobileDataEnabled(),
                         mWifiGlobals.getPollRssiIntervalMillis(),
                         mWifiScoreReport.getAospScorerPredictionStatusForEvaluation(),
-                        mWifiScoreReport.getExternalScorerPredictionStatusForEvaluation());
+                        mWifiScoreReport.getExternalScorerPredictionStatusForEvaluation(),
+                        mWifiScoreReport.getLingering(),
+                        mWifiInfo, mLastConnectionCapabilities);
                 mWifiScoreReport.clearScorerPredictionStatusForEvaluation();
             }
 

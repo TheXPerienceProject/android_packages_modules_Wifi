@@ -62,6 +62,7 @@ public class WifiGlobals {
     private final AtomicBoolean mIsD2dStaConcurrencySupported = new AtomicBoolean(false);
     private final AtomicInteger mSendDhcpHostnameRestriction = new AtomicInteger();
     private boolean mIsWpa3SaeUpgradeOffloadEnabled;
+    private boolean mIsWpa3SaeH2eSupported;
     private boolean mDisableFirmwareRoamingInIdleMode = false;
     // This is read from the overlay, cache it after boot up.
     private final boolean mIsDisconnectOnlyOnInitialIpReachability;
@@ -88,6 +89,8 @@ public class WifiGlobals {
                 R.integer.config_wifiPollRssiLongIntervalMilliseconds));
         mIsDisconnectOnlyOnInitialIpReachability = mContext.getResources()
                 .getBoolean(R.bool.config_disconnectOnlyOnInitialIpReachability);
+        mIsWpa3SaeH2eSupported = mWifiResourceCache
+                .getBoolean(R.bool.config_wifiSaeH2eSupported);
         Set<String> unsupportedSsidPrefixes = new ArraySet<>(mWifiResourceCache.getStringArray(
                 R.array.config_wifiForceDisableMacRandomizationSsidPrefixList));
         mCountryCodeToAfcServers = getCountryCodeToAfcServersMap();
@@ -395,8 +398,15 @@ public class WifiGlobals {
      * @return boolean true if supported;otherwise false.
      */
     public boolean isWpa3SaeH2eSupported() {
-        return mWifiResourceCache
-                .getBoolean(R.bool.config_wifiSaeH2eSupported);
+        return mIsWpa3SaeH2eSupported;
+    }
+
+    /**
+     * Helper method to enable WPA3 SAE Hash-to-Element support based on the supplicant aidl
+     * version.
+     */
+    public void enableWpa3SaeH2eSupport() {
+        mIsWpa3SaeH2eSupported = true;
     }
 
     /**
@@ -669,6 +679,7 @@ public class WifiGlobals {
         pw.println("mIsDisconnectOnlyOnInitialIpReachability=" + mIsDisconnectOnlyOnInitialIpReachability);
         pw.println("IsD2dSupportedWhenInfraStaDisabled="
                 + isD2dSupportedWhenInfraStaDisabled());
+        pw.println("mIsWpa3SaeH2eSupported=" + mIsWpa3SaeH2eSupported);
         for (int i = 0; i < mCarrierSpecificEapFailureConfigMapPerCarrierId.size(); i++) {
             int carrierId = mCarrierSpecificEapFailureConfigMapPerCarrierId.keyAt(i);
             SparseArray<CarrierSpecificEapFailureConfig> perFailureMap =

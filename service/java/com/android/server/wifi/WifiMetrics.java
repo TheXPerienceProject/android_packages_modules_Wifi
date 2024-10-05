@@ -28,10 +28,21 @@ import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESUL
 import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__DEVICE_STATE__STATE_CELLULAR_OFF;
 import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__DEVICE_STATE__STATE_CELLULAR_UNAVAILABLE;
 import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__DEVICE_STATE__STATE_OTHERS;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_DS__TRUE;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_DS__FALSE;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_US__TRUE;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_US__FALSE;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_DS__TRUE;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_DS__FALSE;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_US__TRUE;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_US__FALSE;
 import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__UNUSABLE_EVENT__EVENT_FRAMEWORK_DATA_STALL;
 import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__UNUSABLE_EVENT__EVENT_FIRMWARE_ALERT;
 import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__UNUSABLE_EVENT__EVENT_IP_REACHABILITY_LOST;
 import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__UNUSABLE_EVENT__EVENT_NONE;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__WIFI_FRAMEWORK_STATE__FRAMEWORK_STATE_AWAKENING;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__WIFI_FRAMEWORK_STATE__FRAMEWORK_STATE_CONNECTED;
+import static com.android.server.wifi.proto.WifiStatsLog.SCORER_PREDICTION_RESULT_REPORTED__WIFI_FRAMEWORK_STATE__FRAMEWORK_STATE_LINGERING;
 
 
 import static java.lang.StrictMath.toIntExact;
@@ -44,6 +55,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.EAPConstants;
 import android.net.wifi.IOnWifiUsabilityStatsListener;
@@ -91,6 +104,7 @@ import android.util.SparseIntArray;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.SupplicantStaIfaceHal.StaIfaceReasonCode;
 import com.android.server.wifi.SupplicantStaIfaceHal.StaIfaceStatusCode;
+import com.android.server.wifi.WifiNative.ConnectionCapabilities;
 import com.android.server.wifi.aware.WifiAwareMetrics;
 import com.android.server.wifi.hotspot2.ANQPNetworkKey;
 import com.android.server.wifi.hotspot2.NetworkDetail;
@@ -150,6 +164,7 @@ import com.android.server.wifi.util.IntHistogram;
 import com.android.server.wifi.util.MetricsUtils;
 import com.android.server.wifi.util.ObjectCounter;
 import com.android.server.wifi.util.StringUtil;
+import com.android.wifi.flags.Flags;
 import com.android.wifi.resources.R;
 
 import org.json.JSONArray;
@@ -255,6 +270,9 @@ public class WifiMetrics {
     // Number of WME Access Categories
     private static final int NUM_WME_ACCESS_CATEGORIES = 4;
     private static final int MBB_LINGERING_DURATION_MAX_SECONDS = 30;
+    public static final int MIN_DOWNSTREAM_BANDWIDTH_KBPS = 1000;
+    public static final int MIN_UPSTREAM_BANDWIDTH_KBPS = 1000;
+    public static final int INVALID_SPEED = -1;
 
     private Clock mClock;
     private boolean mScreenOn;
@@ -279,7 +297,8 @@ public class WifiMetrics {
     private WifiHealthMonitor mWifiHealthMonitor;
     private WifiScoreCard mWifiScoreCard;
     private SessionData mPreviousSession;
-    private SessionData mCurrentSession;
+    @VisibleForTesting
+    public SessionData mCurrentSession;
     private String mLastBssid;
     private int mLastFrequency = -1;
     private int mSeqNumInsideFramework = 0;
@@ -502,7 +521,7 @@ public class WifiMetrics {
     /** WifiConfigStore write duration histogram. */
     private SparseIntArray mWifiConfigStoreWriteDurationHistogram = new SparseIntArray();
 
-    /** New  API surface metrics */
+    /** New API surface metrics */
     private final WifiNetworkRequestApiLog mWifiNetworkRequestApiLog =
             new WifiNetworkRequestApiLog();
     private static final int[] NETWORK_REQUEST_API_MATCH_SIZE_HISTOGRAM_BUCKETS =
@@ -626,6 +645,12 @@ public class WifiMetrics {
 
     private final WifiToWifiSwitchStats mWifiToWifiSwitchStats = new WifiToWifiSwitchStats();
 
+    private long mLastScreenOnTimeMillis = 0;
+    @VisibleForTesting
+    long mLastScreenOffTimeMillis = 0;
+    @VisibleForTesting
+    long mLastIgnoredPollTimeMillis = 0;
+
     /** Wi-Fi link specific metrics (MLO). */
     public static class LinkMetrics {
         private long mTotalBeaconRx = 0;
@@ -674,13 +699,15 @@ public class WifiMetrics {
         }
     }
 
-    private static class SessionData {
+    @VisibleForTesting
+    public static class SessionData {
         private String mSsid;
-        private long mSessionStartTimeMillis;
+        @VisibleForTesting
+        public long mSessionStartTimeMillis;
         private long mSessionEndTimeMillis;
         private int mBand;
         private int mAuthType;
-        private ConnectionEvent mConnectionEvent;
+        public ConnectionEvent mConnectionEvent;
         private long mLastRoamCompleteMillis;
 
         SessionData(ConnectionEvent connectionEvent, String ssid, long sessionStartTimeMillis,
@@ -1198,7 +1225,8 @@ public class WifiMetrics {
         private int mPasspointRoamingType;
         private int mTofuConnectionState;
 
-        private ConnectionEvent() {
+        @VisibleForTesting
+        ConnectionEvent() {
             mConnectionEvent = new WifiMetricsProto.ConnectionEvent();
             mRouterFingerPrint = new RouterFingerPrint();
             mConnectionEvent.routerFingerprint = mRouterFingerPrint.mRouterFingerPrintProto;
@@ -1664,7 +1692,7 @@ public class WifiMetrics {
                 new WifiDeviceStateChangeManager.StateChangeCallback() {
                     @Override
                     public void onScreenStateChanged(boolean screenOn) {
-                        setScreenState(screenOn);
+                        handleScreenStateChanged(screenOn);
                     }
                 });
     }
@@ -6063,11 +6091,16 @@ public class WifiMetrics {
     }
 
     /**
-     *  Set screen state (On/Off)
+     *  Handle screen state changing.
      */
-    private void setScreenState(boolean screenOn) {
+    private void handleScreenStateChanged(boolean screenOn) {
         synchronized (mLock) {
             mScreenOn = screenOn;
+            if (screenOn) {
+                mLastScreenOnTimeMillis = mClock.getElapsedSinceBootMillis();
+            } else {
+                mLastScreenOffTimeMillis = mClock.getElapsedSinceBootMillis();
+            }
         }
     }
 
@@ -7008,6 +7041,10 @@ public class WifiMetrics {
             default:
                 return WifiStatsLog.WIFI_IS_UNUSABLE_REPORTED__TYPE__TYPE_UNKNOWN;
         }
+    }
+
+    public boolean isWiFiScorerNewStatsCollected() {
+        return Flags.wifiScorerNewStatsCollection();
     }
 
     /**
@@ -8823,6 +8860,142 @@ public class WifiMetrics {
         }
     }
 
+    @VisibleForTesting
+    int getFrameworkStateForScorer(boolean lingering) {
+        // The first poll after the screen turns on is termed the AWAKENING state.
+        if (mLastIgnoredPollTimeMillis <= mLastScreenOffTimeMillis) {
+            mLastIgnoredPollTimeMillis = mClock.getElapsedSinceBootMillis();
+            return SCORER_PREDICTION_RESULT_REPORTED__WIFI_FRAMEWORK_STATE__FRAMEWORK_STATE_AWAKENING;
+        }
+        if (lingering) {
+            return SCORER_PREDICTION_RESULT_REPORTED__WIFI_FRAMEWORK_STATE__FRAMEWORK_STATE_LINGERING;
+        }
+        return SCORER_PREDICTION_RESULT_REPORTED__WIFI_FRAMEWORK_STATE__FRAMEWORK_STATE_CONNECTED;
+    }
+
+    private class ConnectivityManagerCache {
+        ConnectivityManagerCache() { }
+
+        private ConnectivityManager mConnectivityManager;
+
+        /**
+         * Returns the cached ConnectivityManager or performs a system call to fetch it before
+         * returning.
+         *
+         * Note that this function can still return null if getSystemService cannot find the
+         * connectivity manager.
+         */
+        public ConnectivityManager getConnectivityManager() {
+            if (mConnectivityManager == null) {
+                mConnectivityManager = mContext.getSystemService(ConnectivityManager.class);
+            }
+            return mConnectivityManager;
+        }
+    }
+    private final ConnectivityManagerCache mConnectivityManagerCache =
+            new ConnectivityManagerCache();
+
+    @VisibleForTesting
+    public static class Speeds {
+        public int DownstreamKbps = INVALID_SPEED;
+        public int UpstreamKbps = INVALID_SPEED;
+    }
+
+    /**
+     * Returns the NetworkCapabilites based link capacity estimates.
+     */
+    Speeds getNetworkCapabilitiesSpeeds() {
+        Speeds speeds = new Speeds();
+
+        ConnectivityManager connectivityManager =
+                mConnectivityManagerCache.getConnectivityManager();
+        if (connectivityManager == null) {
+            return speeds;
+        }
+
+        Network activeNetwork = connectivityManager.getActiveNetwork();
+        if (activeNetwork == null) {
+            return speeds;
+        }
+
+        NetworkCapabilities networkCapabilities =
+                connectivityManager.getNetworkCapabilities(activeNetwork);
+        if (networkCapabilities == null) {
+            return speeds;
+        }
+
+        // Normally, we will not get called when WiFi is not active. This deals with a corner case
+        // where we have switched to cellular but we end up getting called one last time.
+        if (!networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+            return speeds;
+        }
+
+        speeds.DownstreamKbps = networkCapabilities.getLinkDownstreamBandwidthKbps();
+        speeds.UpstreamKbps = networkCapabilities.getLinkUpstreamBandwidthKbps();
+
+        return speeds;
+    }
+
+    @VisibleForTesting
+    public static class SpeedSufficient {
+        // Note the default value of 0 maps to '.*UNKNOWN' for the speed sufficient enums that we
+        // use below. Specifically they map to 0 for:
+        //   SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_DS__UNKNOWN
+        //   SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_US__UNKNOWN
+        //   SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_DS__UNKNOWN
+        //   SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_US__UNKNOWN
+        public int Downstream = 0;
+        public int Upstream = 0;
+    }
+
+    @VisibleForTesting
+    SpeedSufficient calcSpeedSufficientNetworkCapabilities(Speeds speeds) {
+        SpeedSufficient speedSufficient = new SpeedSufficient();
+
+        if (speeds == null) {
+            return speedSufficient;
+        }
+
+        if (speeds.DownstreamKbps != INVALID_SPEED) {
+            speedSufficient.Downstream = (speeds.DownstreamKbps < MIN_DOWNSTREAM_BANDWIDTH_KBPS)
+                    ? SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_DS__FALSE
+                    : SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_DS__TRUE;
+
+        }
+
+        if (speeds.UpstreamKbps != INVALID_SPEED) {
+            speedSufficient.Upstream = (speeds.UpstreamKbps < MIN_UPSTREAM_BANDWIDTH_KBPS)
+                    ? SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_US__FALSE
+                    : SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_NETWORK_CAPABILITIES_US__TRUE;
+        }
+
+        return speedSufficient;
+    }
+
+    @VisibleForTesting
+    SpeedSufficient calcSpeedSufficientThroughputPredictor(WifiDataStall.Speeds speeds) {
+        SpeedSufficient speedSufficient = new SpeedSufficient();
+
+        if (speeds == null) {
+            return speedSufficient;
+        }
+
+        if (speeds.DownstreamKbps != WifiDataStall.INVALID_THROUGHPUT) {
+            speedSufficient.Downstream = (speeds.DownstreamKbps < MIN_DOWNSTREAM_BANDWIDTH_KBPS)
+                    ? SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_DS__FALSE
+                    : SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_DS__TRUE;
+
+        }
+
+        if (speeds.UpstreamKbps != WifiDataStall.INVALID_THROUGHPUT) {
+            speedSufficient.Upstream = (speeds.UpstreamKbps < MIN_UPSTREAM_BANDWIDTH_KBPS)
+                    ? SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_US__FALSE
+                    : SCORER_PREDICTION_RESULT_REPORTED__SPEED_SUFFICIENT_THROUGHPUT_PREDICTOR_US__TRUE;
+        }
+
+        return speedSufficient;
+    }
+
     /**
      * Log a ScorerPredictionResultReported atom.
      */
@@ -8831,28 +9004,48 @@ public class WifiMetrics {
             boolean isMobileDataEnabled,
             int pollingIntervalMs,
             int aospScorerPrediction,
-            int externalScorerPrediction) {
+            int externalScorerPrediction,
+            boolean lingering,
+            WifiInfo wifiInfo,
+            ConnectionCapabilities connectionCapabilities
+    ) {
         boolean isCellularDataAvailable = mWifiDataStall.isCellularDataAvailable();
         boolean isThroughputSufficient = mWifiDataStall.isThroughputSufficient();
         int deviceState = getDeviceStateForScorer(
                 hasActiveModem,
                 hasActiveSubInfo, isMobileDataEnabled, isCellularDataAvailable,
                 mAdaptiveConnectivityEnabled);
-
         int scorerUnusableEvent = convertWifiUnusableTypeForScorer(mUnusableEventType);
+        int wifiFrameworkState = getFrameworkStateForScorer(lingering);
+        Speeds speedsNetworkCapabilities = getNetworkCapabilitiesSpeeds();
+        SpeedSufficient speedSufficientNetworkCapabilities =
+                calcSpeedSufficientNetworkCapabilities(speedsNetworkCapabilities);
+        WifiDataStall.Speeds speedsThroughputPredictor = mWifiDataStall.getThrouhgputPredictorSpeeds(
+                wifiInfo, connectionCapabilities);
+        SpeedSufficient speedSufficientThroughputPredictor =
+                calcSpeedSufficientThroughputPredictor(speedsThroughputPredictor);
+
         WifiStatsLog.write_non_chained(SCORER_PREDICTION_RESULT_REPORTED,
                     Process.WIFI_UID,
                     null,
                     aospScorerPrediction,
                     scorerUnusableEvent,
-                    isThroughputSufficient, deviceState, pollingIntervalMs);
+                    isThroughputSufficient, deviceState, pollingIntervalMs,
+                    wifiFrameworkState, speedSufficientNetworkCapabilities.Downstream,
+                    speedSufficientNetworkCapabilities.Upstream,
+                    speedSufficientThroughputPredictor.Downstream,
+                    speedSufficientThroughputPredictor.Upstream);
         if (mScorerUid != Process.WIFI_UID) {
             WifiStatsLog.write_non_chained(SCORER_PREDICTION_RESULT_REPORTED,
                     mScorerUid,
                     null, // TODO(b/354737760): log the attribution tag
                     externalScorerPrediction,
                     scorerUnusableEvent,
-                    isThroughputSufficient, deviceState, pollingIntervalMs);
+                    isThroughputSufficient, deviceState, pollingIntervalMs,
+                    wifiFrameworkState, speedSufficientNetworkCapabilities.Downstream,
+                    speedSufficientNetworkCapabilities.Upstream,
+                    speedSufficientThroughputPredictor.Downstream,
+                    speedSufficientThroughputPredictor.Upstream);
         }
 
         // We'd better reset to TYPE_NONE if it is defined in the future.
