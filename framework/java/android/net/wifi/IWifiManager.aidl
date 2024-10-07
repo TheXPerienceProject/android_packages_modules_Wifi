@@ -521,4 +521,8 @@ interface IWifiManager
     void restoreWifiBackupData(in byte[] data);
 
     boolean isPnoSupported();
+
+    void setAutojoinRestrictionSecurityTypes(int restrictions, in Bundle extras);
+
+    void getAutojoinRestrictionSecurityTypes(in IIntegerListener listener, in Bundle extras);
 }
