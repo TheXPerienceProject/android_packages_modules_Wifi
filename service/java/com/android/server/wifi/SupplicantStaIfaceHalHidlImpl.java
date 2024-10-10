@@ -30,8 +30,6 @@ import static android.net.wifi.WifiManager.WIFI_FEATURE_WFD_R2;
 import static android.net.wifi.WifiManager.WIFI_FEATURE_WPA3_SAE;
 import static android.net.wifi.WifiManager.WIFI_FEATURE_WPA3_SUITE_B;
 
-import static com.android.server.wifi.util.GeneralUtil.getCapabilityIndex;
-
 import android.annotation.NonNull;
 import android.content.Context;
 import android.hardware.wifi.V1_0.WifiChannelWidthInMhz;
@@ -2995,7 +2993,7 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
 
         if ((keyMgmtCapabilities & android.hardware.wifi.supplicant.V1_2.ISupplicantStaNetwork
                 .KeyMgmtMask.SAE) != 0) {
-            advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_WPA3_SAE));
+            advancedCapabilities.set(WIFI_FEATURE_WPA3_SAE);
 
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": SAE supported");
@@ -3004,7 +3002,7 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
 
         if ((keyMgmtCapabilities & android.hardware.wifi.supplicant.V1_2.ISupplicantStaNetwork
                 .KeyMgmtMask.SUITE_B_192) != 0) {
-            advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_WPA3_SUITE_B));
+            advancedCapabilities.set(WIFI_FEATURE_WPA3_SUITE_B);
 
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": SUITE_B supported");
@@ -3013,7 +3011,7 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
 
         if ((keyMgmtCapabilities & android.hardware.wifi.supplicant.V1_2.ISupplicantStaNetwork
                 .KeyMgmtMask.OWE) != 0) {
-            advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_OWE));
+            advancedCapabilities.set(WIFI_FEATURE_OWE);
 
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": OWE supported");
@@ -3022,13 +3020,13 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
 
         if ((keyMgmtCapabilities & android.hardware.wifi.supplicant.V1_2.ISupplicantStaNetwork
                 .KeyMgmtMask.DPP) != 0) {
-            advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_DPP));
+            advancedCapabilities.set(WIFI_FEATURE_DPP);
 
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": DPP supported");
             }
             if (isV1_4()) {
-                advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_DPP_ENROLLEE_RESPONDER));
+                advancedCapabilities.set(WIFI_FEATURE_DPP_ENROLLEE_RESPONDER);
                 if (mVerboseLoggingEnabled) {
                     Log.v(TAG, methodStr + ": DPP ENROLLEE RESPONDER supported");
                 }
@@ -3036,9 +3034,8 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
         }
 
         if (isV1_4()) {
-            advancedCapabilities.set(
-                    getCapabilityIndex(WIFI_FEATURE_PASSPOINT_TERMS_AND_CONDITIONS));
-            advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_DECORATED_IDENTITY));
+            advancedCapabilities.set(WIFI_FEATURE_PASSPOINT_TERMS_AND_CONDITIONS);
+            advancedCapabilities.set(WIFI_FEATURE_DECORATED_IDENTITY);
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": Passpoint T&C supported");
                 Log.v(TAG, methodStr + ": RFC 7542 decorated identity supported");
@@ -3047,7 +3044,7 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
 
         if ((keyMgmtCapabilities & android.hardware.wifi.supplicant.V1_3.ISupplicantStaNetwork
                 .KeyMgmtMask.WAPI_PSK) != 0) {
-            advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_WAPI));
+            advancedCapabilities.set(WIFI_FEATURE_WAPI);
 
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": WAPI supported");
@@ -3056,7 +3053,7 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
 
         if ((keyMgmtCapabilities & android.hardware.wifi.supplicant.V1_3.ISupplicantStaNetwork
                 .KeyMgmtMask.FILS_SHA256) != 0) {
-            advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_FILS_SHA256));
+            advancedCapabilities.set(WIFI_FEATURE_FILS_SHA256);
 
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": FILS_SHA256 supported");
@@ -3064,7 +3061,7 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
         }
         if ((keyMgmtCapabilities & android.hardware.wifi.supplicant.V1_3.ISupplicantStaNetwork
                 .KeyMgmtMask.FILS_SHA384) != 0) {
-            advancedCapabilities.set(getCapabilityIndex(WIFI_FEATURE_FILS_SHA384));
+            advancedCapabilities.set(WIFI_FEATURE_FILS_SHA384);
 
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": FILS_SHA384 supported");
@@ -3235,13 +3232,13 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
         }
 
         if ((drvCapabilitiesMask.value & WpaDriverCapabilitiesMask.MBO) != 0) {
-            featureSet.set(getCapabilityIndex(WIFI_FEATURE_MBO));
+            featureSet.set(WIFI_FEATURE_MBO);
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": MBO supported");
             }
             if ((drvCapabilitiesMask.value
                     & WpaDriverCapabilitiesMask.OCE) != 0) {
-                featureSet.set(getCapabilityIndex(WIFI_FEATURE_OCE));
+                featureSet.set(WIFI_FEATURE_OCE);
                 if (mVerboseLoggingEnabled) {
                     Log.v(TAG, methodStr + ": OCE supported");
                 }
@@ -3250,7 +3247,7 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
 
         if ((drvCapabilitiesMask.value
                 & android.hardware.wifi.supplicant.V1_4.WpaDriverCapabilitiesMask.SAE_PK) != 0) {
-            featureSet.set(getCapabilityIndex(WIFI_FEATURE_SAE_PK));
+            featureSet.set(WIFI_FEATURE_SAE_PK);
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": SAE-PK supported");
             }
@@ -3258,7 +3255,7 @@ public class SupplicantStaIfaceHalHidlImpl implements ISupplicantStaIfaceHal {
 
         if ((drvCapabilitiesMask.value
                 & android.hardware.wifi.supplicant.V1_4.WpaDriverCapabilitiesMask.WFD_R2) != 0) {
-            featureSet.set(getCapabilityIndex(WIFI_FEATURE_WFD_R2));
+            featureSet.set(WIFI_FEATURE_WFD_R2);
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, methodStr + ": WFD-R2 supported");
             }
