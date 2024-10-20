@@ -457,7 +457,7 @@ public class BaseWifiService extends IWifiManager.Stub {
     }
 
     @Override
-    public void releaseMulticastLock(String tag) {
+    public void releaseMulticastLock(IBinder binder, String tag) {
         throw new UnsupportedOperationException();
     }
 
