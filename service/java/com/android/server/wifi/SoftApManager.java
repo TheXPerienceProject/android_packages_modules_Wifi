@@ -66,7 +66,10 @@ import com.android.server.wifi.coex.CoexManager;
 import com.android.server.wifi.coex.CoexManager.CoexListener;
 import com.android.server.wifi.util.ApConfigUtil;
 import com.android.server.wifi.util.WaitingState;
+import com.android.wifi.flags.Flags;
 import com.android.wifi.resources.R;
+
+import com.google.common.collect.ImmutableList;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -1749,6 +1752,13 @@ public class SoftApManager implements ActiveModeManager {
                         + currentInfoWithClientsChanged);
 
                 if (mSoftApCallback != null) {
+                    if (Flags.softapDisconnectReason() && !isConnected) {
+                        // Client successfully disconnected, should also notify callback
+                        mSoftApCallback.onClientsDisconnected(
+                                currentInfoWithClientsChanged,
+                                ImmutableList.of(client));
+                    }
+
                     mSoftApCallback.onConnectedClientsOrInfoChanged(mCurrentSoftApInfoMap,
                             mConnectedClientWithApInfoMap, isBridgeRequired());
                 } else {
@@ -2018,7 +2028,8 @@ public class SoftApManager implements ActiveModeManager {
                         WifiClient client = (WifiClient) message.obj;
                         Log.d(getTag(), "CMD_ASSOCIATED_STATIONS_CHANGED, Client: "
                                 + client.getMacAddress().toString() + " isConnected: "
-                                + isConnected);
+                                + isConnected + " disconnectReason: "
+                                + client.getDisconnectReason());
                         updateConnectedClients(client, isConnected);
                         break;
                     case CMD_AP_INFO_CHANGED:
