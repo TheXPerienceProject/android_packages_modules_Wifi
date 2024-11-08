@@ -335,7 +335,8 @@ public class HalDeviceManager {
             return null;
         }
         WifiStaIface staIface = (WifiStaIface) createIface(HDM_CREATE_IFACE_STA,
-                requiredChipCapabilities, destroyedListener, handler, requestorWs, null);
+                requiredChipCapabilities, destroyedListener, handler, requestorWs, null,
+                false /* isUsingMultiLinkOperation */);
         if (staIface != null) {
             mClientModeManagers.put(getName(staIface), concreteClientModeManager);
         }
@@ -380,7 +381,7 @@ public class HalDeviceManager {
         }
         WifiApIface apIface = (WifiApIface) createIface(isBridged ? HDM_CREATE_IFACE_AP_BRIDGE
                 : HDM_CREATE_IFACE_AP, requiredChipCapabilities, destroyedListener,
-                handler, requestorWs, vendorData);
+                handler, requestorWs, vendorData, softApManager.isUsingMlo());
         if (apIface != null) {
             mSoftApManagers.put(getName(apIface), softApManager);
         }
@@ -396,7 +397,8 @@ public class HalDeviceManager {
             @Nullable InterfaceDestroyedListener destroyedListener,
             @Nullable Handler handler, @NonNull WorkSource requestorWs) {
         WifiP2pIface iface = (WifiP2pIface) createIface(HDM_CREATE_IFACE_P2P,
-                requiredChipCapabilities, destroyedListener, handler, requestorWs, null);
+                requiredChipCapabilities, destroyedListener, handler, requestorWs, null,
+                false /* isUsingMultiLinkOperation */);
         if (iface == null) {
             return null;
         }
@@ -423,7 +425,8 @@ public class HalDeviceManager {
     public WifiNanIface createNanIface(@Nullable InterfaceDestroyedListener destroyedListener,
             @Nullable Handler handler, @NonNull WorkSource requestorWs) {
         return (WifiNanIface) createIface(HDM_CREATE_IFACE_NAN, CHIP_CAPABILITY_ANY,
-                destroyedListener, handler, requestorWs, null);
+                destroyedListener, handler, requestorWs, null,
+                false /* isUsingMultiLinkOperation */);
     }
 
     /**
@@ -1637,7 +1640,8 @@ public class HalDeviceManager {
 
     private WifiHal.WifiInterface createIface(@HdmIfaceTypeForCreation int createIfaceType,
             BitSet requiredChipCapabilities, InterfaceDestroyedListener destroyedListener,
-            Handler handler, WorkSource requestorWs, @Nullable List<OuiKeyedData> vendorData) {
+            Handler handler, WorkSource requestorWs, @Nullable List<OuiKeyedData> vendorData,
+            boolean isUsingMultiLinkOperation) {
         if (mDbg) {
             Log.d(TAG, "createIface: createIfaceType=" + createIfaceType
                     + ", requiredChipCapabilities=" + requiredChipCapabilities
@@ -1673,7 +1677,8 @@ public class HalDeviceManager {
 
             return createIfaceIfPossible(
                     chipInfos, createIfaceType, requiredChipCapabilities,
-                    destroyedListener, handler, requestorWs, vendorData);
+                    destroyedListener, handler, requestorWs, vendorData,
+                    isUsingMultiLinkOperation);
         }
     }
 
@@ -1783,14 +1788,16 @@ public class HalDeviceManager {
     private WifiHal.WifiInterface createIfaceIfPossible(
             WifiChipInfo[] chipInfos, @HdmIfaceTypeForCreation int createIfaceType,
             BitSet requiredChipCapabilities, InterfaceDestroyedListener destroyedListener,
-            Handler handler, WorkSource requestorWs, @Nullable List<OuiKeyedData> vendorData) {
+            Handler handler, WorkSource requestorWs, @Nullable List<OuiKeyedData> vendorData,
+            boolean isUsingMultiLinkOperation) {
         int targetHalIfaceType = HAL_IFACE_MAP.get(createIfaceType);
         if (VDBG) {
             Log.d(TAG, "createIfaceIfPossible: chipInfos=" + Arrays.deepToString(chipInfos)
                     + ", createIfaceType=" + createIfaceType
                     + ", targetHalIfaceType=" + targetHalIfaceType
                     + ", requiredChipCapabilities=" + requiredChipCapabilities
-                    + ", requestorWs=" + requestorWs);
+                    + ", requestorWs=" + requestorWs
+                    + ", isUsingMultiLinkOperation" + isUsingMultiLinkOperation);
         }
         if (vendorData != null && !vendorData.isEmpty()) {
             Log.d(TAG, "Request includes vendor data. ifaceType=" + createIfaceType
@@ -1802,7 +1809,7 @@ public class HalDeviceManager {
 
             if (bestIfaceCreationProposal != null) {
                 WifiHal.WifiInterface iface = executeChipReconfiguration(bestIfaceCreationProposal,
-                        createIfaceType, vendorData);
+                        createIfaceType, vendorData, isUsingMultiLinkOperation);
                 if (iface == null) {
                     // If the chip reconfiguration failed, we'll need to clean up internal state.
                     Log.e(TAG, "Teardown Wifi internal state");
@@ -2447,7 +2454,8 @@ public class HalDeviceManager {
      * Returns the newly created interface or a null on any error.
      */
     private WifiHal.WifiInterface executeChipReconfiguration(IfaceCreationData ifaceCreationData,
-            @HdmIfaceTypeForCreation int createIfaceType, @Nullable List<OuiKeyedData> vendorData) {
+            @HdmIfaceTypeForCreation int createIfaceType, @Nullable List<OuiKeyedData> vendorData,
+            boolean isUsingMultiLinkOperation) {
         if (mDbg) {
             Log.d(TAG, "executeChipReconfiguration: ifaceCreationData=" + ifaceCreationData
                     + ", createIfaceType=" + createIfaceType);
@@ -2521,7 +2529,8 @@ public class HalDeviceManager {
                     iface = ifaceCreationData.chipInfo.chip.createStaIface();
                     break;
                 case HDM_CREATE_IFACE_AP_BRIDGE:
-                    iface = ifaceCreationData.chipInfo.chip.createBridgedApIface(vendorData);
+                    iface = ifaceCreationData.chipInfo.chip.createBridgedApIface(vendorData,
+                            isUsingMultiLinkOperation);
                     break;
                 case HDM_CREATE_IFACE_AP:
                     iface = ifaceCreationData.chipInfo.chip.createApIface(vendorData);
