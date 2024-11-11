@@ -107,6 +107,7 @@ java_library {
         "vendor.qti.hardware.wifi.supplicant-V2.1-java",
         "vendor.qti.hardware.wifi.supplicant-V2.2-java",
         "android.hidl.manager-V1.2-java",
+        "android.system.wifi.mainline_supplicant-java",
         "vendor.qti.hardware.wifi.hostapd-V1.0-java",
         "vendor.qti.hardware.wifi.hostapd-V1.1-java",
         "vendor.qti.hardware.wifi.hostapd-V1.2-java",
