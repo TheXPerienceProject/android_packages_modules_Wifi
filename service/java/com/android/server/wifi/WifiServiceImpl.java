@@ -1366,9 +1366,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public synchronized boolean setWifiEnabled(String packageName, boolean enable) {
-        if (!isValidCallingUser() || enforceChangePermission(packageName) != MODE_ALLOWED) {
+        if (enforceChangePermission(packageName) != MODE_ALLOWED) {
             return false;
         }
+        enforceValidCallingUser();
         int callingUid = Binder.getCallingUid();
         int callingPid = Binder.getCallingPid();
         boolean isPrivileged = isPrivileged(callingPid, callingUid);
@@ -2288,6 +2289,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     // Default country code
                     mSoftApCapability = updateSoftApCapabilityWithAvailableChannelList(
                             mSoftApCapability, mCountryCode.getCountryCode(), null);
+                    if (mWifiNative.isMLDApSupportMLO()) {
+                        mSoftApCapability.setSupportedFeatures(
+                                true, SoftApCapability.SOFTAP_FEATURE_MLO);
+                    }
                 }
                 return mSoftApCapability;
             }
