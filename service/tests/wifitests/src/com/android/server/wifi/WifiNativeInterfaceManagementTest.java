@@ -248,6 +248,7 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
         when(mWifiSettingsConfigStore.get(
                 eq(WifiSettingsConfigStore.WIFI_NATIVE_SUPPORTED_STA_BANDS)))
                 .thenReturn(TEST_SUPPORTED_BANDS);
+        when(mActiveWifiNanIface.getName()).thenReturn(IFACE_NAME_AWARE);
 
         mSession = ExtendedMockito.mockitoSession()
                 .mockStatic(Flags.class, withSettings().lenient())
