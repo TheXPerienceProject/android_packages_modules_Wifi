@@ -557,4 +557,6 @@ interface IWifiManager {
 
     void storeCapturedData(int triggerType, boolean isFullCapture, long triggerStartTimeMillis,
             long triggerStopTimeMillis, in IIntegerListener listener);
+    boolean isUsdSubscriberSupported();
+    boolean isUsdPublisherSupported();
 }
