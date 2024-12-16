@@ -33,6 +33,7 @@ import android.net.wifi.aware.PeerHandle;
 import android.os.Build;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.util.Log;
 
 import androidx.annotation.RequiresApi;
 
@@ -41,6 +42,7 @@ import com.android.wifi.flags.Flags;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -119,6 +121,8 @@ public final class RangingResult implements Parcelable {
     private final boolean mIsRangingFrameProtected;
     private final boolean mIsSecureHeLtfEnabled;
     private final int mSecureHeLtfProtocolVersion;
+    private final byte[] mPasnComebackCookie;
+    private final long mPasnComebackAfterMillis;
 
     /**
      * Builder class used to construct {@link RangingResult} objects.
@@ -152,6 +156,49 @@ public final class RangingResult implements Parcelable {
         private  boolean mIsRangingFrameProtected;
         private  boolean mIsSecureHeLtfEnabled;
         private  int mSecureHeLtfProtocolVersion;
+        private byte[] mPasnComebackCookie = null;
+        private long mPasnComebackAfterMillis = UNSPECIFIED;
+
+        /**
+         * Constructs a Builder with default values (see {@link Builder}).
+         */
+        public Builder() {}
+
+        /**
+         * Constructs a Builder initialized from an existing {@link RangingResult} instance.
+         *
+         * @hide
+         */
+        public Builder(@NonNull RangingResult other) {
+            if (other == null) {
+                Log.e(TAG, "Cannot provide a null RangingResult");
+                return;
+            }
+
+            mStatus = other.mStatus;
+            mMac = other.mMac;
+            mPeerHandle = other.mPeerHandle;
+            mDistanceMm = other.mDistanceMm;
+            mDistanceStdDevMm = other.mDistanceStdDevMm;
+            mRssi = other.mRssi;
+            mNumAttemptedMeasurements = other.mNumAttemptedMeasurements;
+            mNumSuccessfulMeasurements = other.mNumSuccessfulMeasurements;
+            if (other.mLci != null) mLci = other.mLci.clone();
+            if (other.mLcr != null) mLcr = other.mLcr.clone();
+            mResponderLocation = new ResponderLocation(mLci, mLcr);
+            mTimestamp = other.mTimestamp;
+            mIs80211mcMeasurement = other.mIs80211mcMeasurement;
+            mFrequencyMHz = other.mFrequencyMHz;
+            mPacketBw = other.mPacketBw;
+            mIs80211azNtbMeasurement = other.mIs80211azNtbMeasurement;
+            mNtbMinMeasurementTime = other.mNtbMinMeasurementTime;
+            mNtbMaxMeasurementTime = other.mNtbMaxMeasurementTime;
+            mI2rTxLtfRepetitions = other.mI2rTxLtfRepetitions;
+            mR2iTxLtfRepetitions = other.mR2iTxLtfRepetitions;
+            mNumTxSpatialStreams = other.mNumTxSpatialStreams;
+            mNumRxSpatialStreams = other.mNumRxSpatialStreams;
+            mVendorData = new ArrayList<>(other.mVendorData);
+        }
 
         /**
          * Sets the Range result status.
@@ -566,6 +613,35 @@ public final class RangingResult implements Parcelable {
         }
 
         /**
+         * Set comeback cookie. See {@link #getPasnComebackCookie()}. If not set, default value
+         * is null.
+         *
+         * @param pasnComebackCookie an opaque  sequence of octets
+         * @return The builder to facilitate chaining.
+         */
+        @NonNull
+        @FlaggedApi(Flags.FLAG_SECURE_RANGING)
+        public Builder setPasnComebackCookie(@NonNull byte[] pasnComebackCookie) {
+            mPasnComebackCookie = pasnComebackCookie;
+            return  this;
+        }
+
+        /**
+         * Set comeback after time. See {@link #getPasnComebackAfterMillis()}. If not set default
+         * value is {@link RangingResult#UNSPECIFIED}.
+         *
+         * @param comebackAfterMillis the ranging initiator (STA) must wait for the specified
+         *                            time before retrying secure ranging
+         * @return The builder to facilitate chaining.
+         */
+        @NonNull
+        @FlaggedApi(Flags.FLAG_SECURE_RANGING)
+        public Builder setPasnComebackAfterMillis(long comebackAfterMillis) {
+            mPasnComebackAfterMillis = comebackAfterMillis;
+            return  this;
+        }
+
+        /**
          * Build {@link RangingResult}
          * @return an instance of {@link RangingResult}
          */
@@ -613,6 +689,8 @@ public final class RangingResult implements Parcelable {
         mIsRangingFrameProtected = builder.mIsRangingFrameProtected;
         mIsSecureHeLtfEnabled = builder.mIsSecureHeLtfEnabled;
         mSecureHeLtfProtocolVersion = builder.mSecureHeLtfProtocolVersion;
+        mPasnComebackCookie = builder.mPasnComebackCookie;
+        mPasnComebackAfterMillis = builder.mPasnComebackAfterMillis;
     }
 
     /**
@@ -1023,6 +1101,31 @@ public final class RangingResult implements Parcelable {
         return mSecureHeLtfProtocolVersion;
     }
 
+    /**
+     * Get PASN comeback cookie. PASN authentication allows an AP to indicate the deferral time
+     * and optionally a Cookie. See {@link #getPasnComebackAfterMillis()}
+     * <p>
+     * When an AP receives a large volume of initial PASN Authentication frames, it can use
+     * the comeback after field in the PASN Parameters element to indicate a deferral time
+     * and optionally provide a comeback cookie which is an opaque sequence of octets. Upon
+     * receiving this response, the ranging initiator (STA) must wait for the specified time
+     * before retrying secure authentication, presenting the received cookie to the AP.
+     **/
+    @FlaggedApi(Flags.FLAG_SECURE_RANGING)
+    @Nullable
+    public byte[] getPasnComebackCookie() {
+        return mPasnComebackCookie;
+    }
+
+    /**
+     * Get Comeback after time in milliseconds. See {@link #getPasnComebackCookie()}. A value 0
+     * indicates the ranging request operation can be tried immediately with the cookie.
+     */
+    @FlaggedApi(Flags.FLAG_SECURE_RANGING)
+    public long getPasnComebackAfterMillis() {
+        return mPasnComebackAfterMillis;
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -1136,6 +1239,11 @@ public final class RangingResult implements Parcelable {
                 .append(", numTxSpatialStreams=").append(mNumTxSpatialStreams)
                 .append(", numRxSpatialStreams=").append(mNumRxSpatialStreams)
                 .append(", vendorData=").append(mVendorData)
+                .append(", isRangingAuthenticated").append(mIsRangingAuthenticated)
+                .append(", isRangingFrameProtected").append(mIsRangingFrameProtected)
+                .append(", isSecureHeLtfEnabled").append(mIsSecureHeLtfEnabled)
+                .append(", pasnComebackCookie").append(Arrays.toString(mPasnComebackCookie))
+                .append(", pasnComebackAfterMillis").append(mPasnComebackAfterMillis)
                 .append("]").toString();
     }
 
@@ -1169,7 +1277,13 @@ public final class RangingResult implements Parcelable {
                 && mR2iTxLtfRepetitions == lhs.mR2iTxLtfRepetitions
                 && mNumTxSpatialStreams == lhs.mNumTxSpatialStreams
                 && mNumRxSpatialStreams == lhs.mNumRxSpatialStreams
-                && Objects.equals(mVendorData, lhs.mVendorData);
+                && Objects.equals(mVendorData, lhs.mVendorData)
+                && mIsRangingAuthenticated == lhs.mIsRangingAuthenticated
+                && mIsRangingFrameProtected == lhs.mIsRangingFrameProtected
+                && mIsSecureHeLtfEnabled == lhs.isSecureHeLtfEnabled()
+                && mPasnComebackAfterMillis == lhs.mPasnComebackAfterMillis
+                && Arrays.equals(mPasnComebackCookie, lhs.mPasnComebackCookie);
+
     }
 
     @Override
@@ -1179,6 +1293,8 @@ public final class RangingResult implements Parcelable {
                 Arrays.hashCode(mLcr), mResponderLocation, mTimestamp, mIs80211mcMeasurement,
                 mFrequencyMHz, mPacketBw, mIs80211azNtbMeasurement, mNtbMinMeasurementTime,
                 mNtbMaxMeasurementTime, mI2rTxLtfRepetitions, mR2iTxLtfRepetitions,
-                mNumTxSpatialStreams, mR2iTxLtfRepetitions, mVendorData);
+                mNumTxSpatialStreams, mR2iTxLtfRepetitions, mVendorData, mIsRangingAuthenticated,
+                mIsRangingFrameProtected, mIsSecureHeLtfEnabled, mPasnComebackAfterMillis,
+                Arrays.hashCode(mPasnComebackCookie));
     }
 }
