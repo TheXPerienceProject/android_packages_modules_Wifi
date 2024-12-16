@@ -17,19 +17,30 @@
 
 package com.google.snippet.wifi.aware;
 
+import android.net.MacAddress;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import android.net.wifi.aware.AwarePairingConfig;
+import android.net.wifi.aware.PeerHandle;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
+import android.net.wifi.aware.WifiAwareDataPathSecurityConfig;
 import android.net.wifi.aware.WifiAwareNetworkSpecifier;
+import android.net.wifi.rtt.RangingRequest;
 
+import androidx.annotation.NonNull;
+
+import com.android.modules.utils.build.SdkLevel;
+
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Deserializes JSONObject into data objects defined in Wi-Fi Aware API.
@@ -44,6 +55,8 @@ public class WifiAwareJsonDeserializer {
     private static final String MAX_DISTANCE_MM = "max_distance_mm";
     private static final String PAIRING_CONFIG = "pairing_config";
     private static final String TTL_SEC = "TtlSec";
+    private static final String INSTANTMODE_ENABLE = "InstantModeEnabled";
+    private static final String BAND_5 = "5G";
     // PublishConfig special
     private static final String PUBLISH_TYPE = "publish_type";
     private static final String RANGING_ENABLED = "ranging_enabled";
@@ -60,10 +73,25 @@ public class WifiAwareJsonDeserializer {
     private static final String PSK_PASSPHRASE = "psk_passphrase";
     private static final String PORT = "port";
     private static final String TRANSPORT_PROTOCOL = "transport_protocol";
+    private static final String DATA_PATH_SECURITY_CONFIG = "data_path_security_config";
+    private static final String CHANNEL_FREQUENCY_M_HZ = "channel_frequency_m_hz";
     //NetworkRequest specific
     private static final String TRANSPORT_TYPE = "transport_type";
     private static final String CAPABILITY = "capability";
     private static final String NETWORK_SPECIFIER_PARCEL = "network_specifier_parcel";
+    //WifiAwareDataPathSecurityConfig specific
+    private static final String CIPHER_SUITE = "cipher_suite";
+    private static final String SECURITY_CONFIG_PMK = "pmk";
+    /** 2.4 GHz band */
+    public static final int WIFI_BAND_24_GHZ = 1;
+    /** 5 GHz band excluding DFS channels */
+    public static final int WIFI_BAND_5_GHZ = 1;
+    /** DFS channels from 5 GHz band only */
+    public static final int WIFI_BAND_5_GHZ_DFS_ONLY  = 1;
+
+    // Fields for rangingRequest
+    private static final String RANGING_REQUEST_PEER_IDS = "peer_ids";
+    private static final String RANGING_REQUEST_PEER_MACS = "peer_mac_addresses";
 
 
     private WifiAwareJsonDeserializer() {
@@ -120,6 +148,11 @@ public class WifiAwareJsonDeserializer {
         }
         if (jsonObject.has(TTL_SEC)) {
             builder.setTtlSec(jsonObject.getInt(TTL_SEC));
+        }
+        if (SdkLevel.isAtLeastT() && jsonObject.has(INSTANTMODE_ENABLE)) {
+            builder.setInstantCommunicationModeEnabled(true,
+                    Objects.equals(jsonObject.getString(INSTANTMODE_ENABLE), BAND_5)
+                            ? WIFI_BAND_5_GHZ :WIFI_BAND_24_GHZ);
         }
         return builder.build();
     }
@@ -205,6 +238,11 @@ public class WifiAwareJsonDeserializer {
         if (jsonObject.has(TTL_SEC)) {
             builder.setTtlSec(jsonObject.getInt(TTL_SEC));
         }
+        if (SdkLevel.isAtLeastT() && jsonObject.has(INSTANTMODE_ENABLE)) {
+            builder.setInstantCommunicationModeEnabled(true,
+                    Objects.equals(jsonObject.getString(INSTANTMODE_ENABLE), BAND_5)
+                            ? WIFI_BAND_5_GHZ :WIFI_BAND_24_GHZ);
+        }
         return builder.build();
     }
 
@@ -231,7 +269,8 @@ public class WifiAwareJsonDeserializer {
             if (jsonObject.has(NETWORK_SPECIFIER_PARCEL)) {
                 String specifierParcelableStr = jsonObject.getString(NETWORK_SPECIFIER_PARCEL);
                 WifiAwareNetworkSpecifier wifiAwareNetworkSpecifier =
-                        SerializationUtil.stringToParcelable(specifierParcelableStr,
+                        SerializationUtil.stringToParcelable(
+                                specifierParcelableStr,
                                 WifiAwareNetworkSpecifier.CREATOR
                         );
                 // Set the network specifier in the request builder
@@ -269,7 +308,82 @@ public class WifiAwareJsonDeserializer {
         if (jsonObject.has(TRANSPORT_PROTOCOL)) {
             builder.setTransportProtocol(jsonObject.getInt(TRANSPORT_PROTOCOL));
         }
+        if (jsonObject.has(PMK)) {
+            builder.setPmk(jsonObject.getString(PMK).getBytes(StandardCharsets.UTF_8));
+        }
+        if (jsonObject.has(DATA_PATH_SECURITY_CONFIG)) {
+            builder.setDataPathSecurityConfig(jsonToDataPathSSecurityConfig(
+                    jsonObject.getJSONObject(DATA_PATH_SECURITY_CONFIG)));
+        }
+        if (jsonObject.has(CHANNEL_FREQUENCY_M_HZ)) {
+            builder.setChannelFrequencyMhz(jsonObject.getInt(CHANNEL_FREQUENCY_M_HZ), true);
+        }
+
         return builder.build();
 
+    }
+
+    /**
+     * Converts request from JSON object to {@link WifiAwareDataPathSecurityConfig}.
+     *
+     * @param jsonObject corresponding to WifiAwareNetworkSpecifier in
+     *                   tests/hostsidetests/multidevices/test/aware/constants.py
+     */
+    private static WifiAwareDataPathSecurityConfig jsonToDataPathSSecurityConfig(
+            @NonNull JSONObject jsonObject
+    ) throws JSONException {
+        WifiAwareDataPathSecurityConfig.Builder builder = null;
+
+        if (jsonObject.has(CIPHER_SUITE)) {
+            int cipherSuite = jsonObject.getInt(CIPHER_SUITE);
+            builder = new WifiAwareDataPathSecurityConfig.Builder(cipherSuite);
+        } else {
+            throw new RuntimeException("Missing 'cipher_suite' in data path security jsonObject "
+                    + "config");
+        }
+        if (jsonObject.has(SECURITY_CONFIG_PMK)) {
+            byte[] pmk = jsonObject.getString(SECURITY_CONFIG_PMK).getBytes(StandardCharsets.UTF_8);
+            builder.setPmk(pmk);
+        }
+        return builder.build();
+
+    }
+
+    /**
+     * Converts the ranging request from JSONObject to {@link android.net.wifi.rtt.RangingRequest}.
+     * This converts peer IDs in the request to Wi-Fi Aware peer handles in
+     * {@link #mPeerHandles mPeerHandles}.
+     *
+     * @param jsonObject        The ranging request in JSONObject type.
+     * @param peerHandles       All Wi-Fi Aware peers.
+     * @return The converted ranging request.
+     */
+    public static RangingRequest jsonToRangingRequest(
+            @NonNull JSONObject jsonObject, ConcurrentHashMap<Integer, PeerHandle> peerHandles
+    ) throws JSONException, IllegalArgumentException {
+        RangingRequest.Builder builder = new RangingRequest.Builder();
+        if (jsonObject.has(RANGING_REQUEST_PEER_IDS)) {
+            JSONArray values = jsonObject.getJSONArray(RANGING_REQUEST_PEER_IDS);
+            for (int i = 0; i < values.length(); i++) {
+                int peerId = values.getInt(i);
+                PeerHandle handle = peerHandles.get(peerId);
+                if (handle == null) {
+                    throw new IllegalArgumentException(
+                        "Got an invalid peerId. peerId: " + peerId + ", all peer Handles: "
+                            + peerHandles
+                    );
+                }
+                builder.addWifiAwarePeer(handle);
+            }
+        }
+        if (jsonObject.has(RANGING_REQUEST_PEER_MACS)) {
+            JSONArray values = jsonObject.getJSONArray(RANGING_REQUEST_PEER_MACS);
+            for (int i = 0; i < values.length(); i++) {
+                String macAddressStr = values.getString(i);
+                MacAddress macAddress = MacAddress.fromString(macAddressStr);
+                builder.addWifiAwarePeer(macAddress);
+            }
+        }
+        return builder.build();
     }
 }

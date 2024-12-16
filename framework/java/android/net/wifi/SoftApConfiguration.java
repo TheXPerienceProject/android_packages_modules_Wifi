@@ -26,6 +26,7 @@ import android.app.compat.CompatChanges;
 import android.compat.annotation.ChangeId;
 import android.compat.annotation.EnabledAfter;
 import android.net.MacAddress;
+import android.net.wifi.util.Environment;
 import android.net.wifi.util.HexEncoding;
 import android.os.Build;
 import android.os.Parcel;
@@ -74,30 +75,26 @@ public final class SoftApConfiguration implements Parcelable {
 
     /**
      * 2GHz band.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(Flags.FLAG_PUBLIC_BANDS_FOR_LOHS)
     public static final int BAND_2GHZ = 1 << 0;
 
     /**
      * 5GHz band.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(Flags.FLAG_PUBLIC_BANDS_FOR_LOHS)
     public static final int BAND_5GHZ = 1 << 1;
 
     /**
      * 6GHz band.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(Flags.FLAG_PUBLIC_BANDS_FOR_LOHS)
     public static final int BAND_6GHZ = 1 << 2;
 
     /**
      * 60GHz band.
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(Flags.FLAG_PUBLIC_BANDS_FOR_LOHS)
     public static final int BAND_60GHZ = 1 << 3;
 
     /**
@@ -406,6 +403,11 @@ public final class SoftApConfiguration implements Parcelable {
     private @NonNull List<OuiKeyedData> mVendorData;
 
     /**
+     * Whether connected clients can communicate with each other or not.
+     */
+    private boolean mIsClientIsolationEnabled;
+
+    /**
      * THe definition of security type OPEN.
      */
     public static final int SECURITY_TYPE_OPEN = 0;
@@ -479,8 +481,8 @@ public final class SoftApConfiguration implements Parcelable {
             @NonNull Set<Integer> allowedAcsChannels6g,
             @WifiAnnotations.Bandwidth int maxChannelBandwidth,
             @Nullable String oweTransIfaceName,
-            @Nullable List<OuiKeyedData> vendorData) {
-
+            @Nullable List<OuiKeyedData> vendorData,
+            boolean isClientIsolationEnabled) {
         mWifiSsid = ssid;
         mBssid = bssid;
         mPassphrase = passphrase;
@@ -513,6 +515,7 @@ public final class SoftApConfiguration implements Parcelable {
         mMaxChannelBandwidth = maxChannelBandwidth;
         mOweTransIfaceName = oweTransIfaceName;
         mVendorData = new ArrayList<>(vendorData);
+        mIsClientIsolationEnabled = isClientIsolationEnabled;
     }
 
     @Override
@@ -552,7 +555,8 @@ public final class SoftApConfiguration implements Parcelable {
                 && Objects.equals(mAllowedAcsChannels6g, other.mAllowedAcsChannels6g)
                 && mOweTransIfaceName == other.mOweTransIfaceName
                 && mMaxChannelBandwidth == other.mMaxChannelBandwidth
-                && Objects.equals(mVendorData, other.mVendorData);
+                && Objects.equals(mVendorData, other.mVendorData)
+                && mIsClientIsolationEnabled == other.mIsClientIsolationEnabled;
     }
 
     @Override
@@ -565,7 +569,7 @@ public final class SoftApConfiguration implements Parcelable {
                 mIsUserConfiguration, mBridgedModeOpportunisticShutdownTimeoutMillis,
                 mVendorElements, mPersistentRandomizedMacAddress, mAllowedAcsChannels2g,
                 mAllowedAcsChannels5g, mAllowedAcsChannels6g, mMaxChannelBandwidth,
-                mOweTransIfaceName, mVendorData);
+                mOweTransIfaceName, mVendorData, mIsClientIsolationEnabled);
     }
 
     @Override
@@ -601,6 +605,7 @@ public final class SoftApConfiguration implements Parcelable {
         sbuf.append(" \n mMaxChannelBandwidth = ").append(mMaxChannelBandwidth);
         sbuf.append(" \n OWE Transition mode Iface =").append(mOweTransIfaceName);
         sbuf.append(" \n mVendorData = ").append(mVendorData);
+        sbuf.append(" \n mIsClientIsolationEnabled = ").append(mIsClientIsolationEnabled);
         return sbuf.toString();
     }
 
@@ -632,6 +637,7 @@ public final class SoftApConfiguration implements Parcelable {
         dest.writeInt(mMaxChannelBandwidth);
         dest.writeString(mOweTransIfaceName);
         dest.writeList(mVendorData);
+        dest.writeBoolean(mIsClientIsolationEnabled);
     }
 
     /* Reference from frameworks/base/core/java/android/os/Parcel.java */
@@ -732,7 +738,8 @@ public final class SoftApConfiguration implements Parcelable {
                     readHashSetInt(in),
                     in.readInt(),
                     in.readString(),
-                    readOuiKeyedDataList(in));
+                    readOuiKeyedDataList(in),
+                    in.readBoolean());
         }
 
         @Override
@@ -878,11 +885,9 @@ public final class SoftApConfiguration implements Parcelable {
      *
      * Note: return array may only include one channel when current setting is single AP mode.
      * See also {@link Builder#setChannels(SparseIntArray)}.
-     *
-     * @hide
      */
+    @FlaggedApi(Flags.FLAG_PUBLIC_BANDS_FOR_LOHS)
     @RequiresApi(Build.VERSION_CODES.S)
-    @SystemApi
     public @NonNull SparseIntArray getChannels() {
         if (!SdkLevel.isAtLeastS()) {
             throw new UnsupportedOperationException();
@@ -949,6 +954,8 @@ public final class SoftApConfiguration implements Parcelable {
      * Returns a flag indicating whether clients need to be pre-approved by the user.
      * (true: authorization required) or not (false: not required).
      * See also {@link Builder#setClientControlByUserEnabled(Boolean)}.
+     *
+     * @return true when client isolation is enable.
      *
      * @hide
      */
@@ -1201,6 +1208,24 @@ public final class SoftApConfiguration implements Parcelable {
     }
 
     /**
+     * Returns whether client isolation is enabled or not.
+     *
+     * Client isolation is used to disallow a connected Soft AP
+     * client to communicate with other connected clients.
+     *
+     * @hide
+     */
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    @FlaggedApi(Flags.FLAG_AP_ISOLATE)
+    @SystemApi
+    public boolean isClientIsolationEnabled() {
+        if (!Environment.isSdkAtLeastB()) {
+            throw new UnsupportedOperationException();
+        }
+        return mIsClientIsolationEnabled;
+    }
+
+    /**
      * Returns a {@link WifiConfiguration} representation of this {@link SoftApConfiguration}.
      * Note that SoftApConfiguration may contain configuration which is cannot be represented
      * by the legacy WifiConfiguration, in such cases a null will be returned.
@@ -1276,10 +1301,8 @@ public final class SoftApConfiguration implements Parcelable {
      *
      * All fields are optional. By default, SSID and BSSID are automatically chosen by the
      * framework, and an open network is created.
-     *
-     * @hide
      */
-    @SystemApi
+    @FlaggedApi(Flags.FLAG_PUBLIC_BANDS_FOR_LOHS)
     public static final class Builder {
         private WifiSsid mWifiSsid;
         private MacAddress mBssid;
@@ -1307,6 +1330,8 @@ public final class SoftApConfiguration implements Parcelable {
         private @WifiAnnotations.Bandwidth int mMaxChannelBandwidth;
         private String mOweTransIfaceName;
         private @Nullable List<OuiKeyedData> mVendorData;
+        private boolean mIsClientIsolationEnabled;
+
         /**
          * Constructs a Builder with default values (see {@link Builder}).
          */
@@ -1342,11 +1367,15 @@ public final class SoftApConfiguration implements Parcelable {
             mMaxChannelBandwidth = SoftApInfo.CHANNEL_WIDTH_AUTO;
             mOweTransIfaceName = null;
             mVendorData = new ArrayList<>();
+            mIsClientIsolationEnabled = false;
         }
 
         /**
          * Constructs a Builder initialized from an existing {@link SoftApConfiguration} instance.
+         *
+         * @hide
          */
+        @SystemApi
         public Builder(@NonNull SoftApConfiguration other) {
             if (other == null) {
                 Log.e(TAG, "Cannot provide a null SoftApConfiguration");
@@ -1387,6 +1416,7 @@ public final class SoftApConfiguration implements Parcelable {
             }
             mOweTransIfaceName = other.mOweTransIfaceName;
             mVendorData = new ArrayList<>(other.mVendorData);
+            mIsClientIsolationEnabled = other.mIsClientIsolationEnabled;
         }
 
         /**
@@ -1424,7 +1454,7 @@ public final class SoftApConfiguration implements Parcelable {
                     mBridgedModeOpportunisticShutdownTimeoutMillis, mVendorElements,
                     mPersistentRandomizedMacAddress, mAllowedAcsChannels2g, mAllowedAcsChannels5g,
                     mAllowedAcsChannels6g, mMaxChannelBandwidth,
-                    mOweTransIfaceName, mVendorData);
+                    mOweTransIfaceName, mVendorData, mIsClientIsolationEnabled);
         }
 
         /**
@@ -1441,9 +1471,12 @@ public final class SoftApConfiguration implements Parcelable {
          *                                  representation is longer than 32 bytes.
          *
          * @deprecated Use {@link #setWifiSsid(WifiSsid)} instead.
+         *
+         * @hide
          */
         @NonNull
         @Deprecated
+        @SystemApi
         public Builder setSsid(@Nullable String ssid) {
             if (ssid == null) {
                 mWifiSsid = null;
@@ -1465,9 +1498,12 @@ public final class SoftApConfiguration implements Parcelable {
          *
          * @param wifiSsid SSID, or null ot have the SSID automatically chosen by the framework.
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @NonNull
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        @SystemApi
         public Builder setWifiSsid(@Nullable WifiSsid wifiSsid) {
             if (!SdkLevel.isAtLeastT()) {
                 throw new UnsupportedOperationException();
@@ -1484,9 +1520,12 @@ public final class SoftApConfiguration implements Parcelable {
          *
          * @param vendorElements VendorElements
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @NonNull
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        @SystemApi
         public Builder setVendorElements(
                 @NonNull List<ScanResult.InformationElement> vendorElements) {
             if (!SdkLevel.isAtLeastT()) {
@@ -1542,8 +1581,11 @@ public final class SoftApConfiguration implements Parcelable {
          * @return Builder for chaining.
          * @throws IllegalArgumentException when the given BSSID is the all-zero
          *                                  , multicast or broadcast MAC address.
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setBssid(@Nullable MacAddress bssid) {
             if (bssid != null) {
                 Preconditions.checkArgument(!bssid.equals(WifiManager.ALL_ZEROS_MAC_ADDRESS));
@@ -1583,8 +1625,11 @@ public final class SoftApConfiguration implements Parcelable {
          *         when the passphrase is not between 8 and 63 bytes (inclusive) for
          *             - {@link #SECURITY_TYPE_WPA2_PSK}
          *             - {@link #SECURITY_TYPE_WPA3_SAE_TRANSITION}
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setPassphrase(@Nullable String passphrase, @SecurityType int securityType) {
             if (!SdkLevel.isAtLeastT()
                     && (securityType == SECURITY_TYPE_WPA3_OWE_TRANSITION
@@ -1627,8 +1672,11 @@ public final class SoftApConfiguration implements Parcelable {
          *
          * @param hiddenSsid true for a hidden SSID, false otherwise.
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setHiddenSsid(boolean hiddenSsid) {
             mHiddenSsid = hiddenSsid;
             return this;
@@ -1643,8 +1691,11 @@ public final class SoftApConfiguration implements Parcelable {
          * {@link #BAND_2GHZ}, {@link #BAND_5GHZ}, {@link #BAND_6GHZ}.
          * @return Builder for chaining.
          * @throws IllegalArgumentException when an invalid band type is provided.
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setBand(@BandType int band) {
             if (!isBandValid(band)) {
                 throw new IllegalArgumentException("Invalid band type: " + band);
@@ -1675,9 +1726,12 @@ public final class SoftApConfiguration implements Parcelable {
          * @return Builder for chaining.
          * @throws IllegalArgumentException when more than 2 bands are set or an invalid band type
          *                                  is provided.
+         *
+         * @hide
          */
         @RequiresApi(Build.VERSION_CODES.S)
         @NonNull
+        @SystemApi
         public Builder setBands(@NonNull int[] bands) {
             if (!SdkLevel.isAtLeastS()) {
                 throw new UnsupportedOperationException();
@@ -1725,8 +1779,11 @@ public final class SoftApConfiguration implements Parcelable {
          * @param band containing this channel.
          * @return Builder for chaining.
          * @throws IllegalArgumentException when the invalid channel or band type is configured.
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setChannel(int channel, @BandType int band) {
             if (!isChannelBandPairValid(channel, band)) {
                 throw new IllegalArgumentException("Invalid channel(" + channel
@@ -1840,8 +1897,11 @@ public final class SoftApConfiguration implements Parcelable {
          *
          * @param maxNumberOfClients maximum client number of the AP.
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setMaxNumberOfClients(@IntRange(from = 0) int maxNumberOfClients) {
             if (maxNumberOfClients < 0) {
                 throw new IllegalArgumentException("maxNumberOfClients should be not negative");
@@ -1862,8 +1922,11 @@ public final class SoftApConfiguration implements Parcelable {
          * @return Builder for chaining.
          *
          * @see #setShutdownTimeoutMillis(long)
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setAutoShutdownEnabled(boolean enable) {
             mAutoShutdownEnabled = enable;
             return this;
@@ -1888,8 +1951,11 @@ public final class SoftApConfiguration implements Parcelable {
          * @return Builder for chaining.
          *
          * @see #setAutoShutdownEnabled(boolean)
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setShutdownTimeoutMillis(@IntRange(from = -1) long timeoutMillis) {
             if (CompatChanges.isChangeEnabled(
                     REMOVE_ZERO_FOR_TIMEOUT_SETTING) && timeoutMillis < 1) {
@@ -1931,8 +1997,11 @@ public final class SoftApConfiguration implements Parcelable {
          *
          * @param enabled true for enabling the control by user, false otherwise.
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setClientControlByUserEnabled(boolean enabled) {
             mClientControlByUser = enabled;
             return this;
@@ -1956,9 +2025,12 @@ public final class SoftApConfiguration implements Parcelable {
          * <p>
          *
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @NonNull
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        @SystemApi
         public Builder setAllowedAcsChannels(@BandType int band, @NonNull int[] channels) {
             if (!SdkLevel.isAtLeastT()) {
                 throw new UnsupportedOperationException();
@@ -2012,9 +2084,12 @@ public final class SoftApConfiguration implements Parcelable {
          * or {@link SoftApInfo#CHANNEL_WIDTH_320MHZ}
          *
          * @return builder for chaining
+         *
+         * @hide
          */
         @NonNull
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        @SystemApi
         public Builder setMaxChannelBandwidth(@WifiAnnotations.Bandwidth int maxChannelBandwidth) {
             if (!SdkLevel.isAtLeastT()) {
                 throw new UnsupportedOperationException();
@@ -2057,8 +2132,11 @@ public final class SoftApConfiguration implements Parcelable {
          * @param allowedClientList list of clients which are allowed to associate to the AP
          *                          without user pre-approval.
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setAllowedClientList(@NonNull List<MacAddress> allowedClientList) {
             mAllowedClientList = new ArrayList<>(allowedClientList);
             return this;
@@ -2081,8 +2159,11 @@ public final class SoftApConfiguration implements Parcelable {
          *
          * @param blockedClientList list of clients which are not allowed to associate to the AP.
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @NonNull
+        @SystemApi
         public Builder setBlockedClientList(@NonNull List<MacAddress> blockedClientList) {
             mBlockedClientList = new ArrayList<>(blockedClientList);
             return this;
@@ -2114,9 +2195,12 @@ public final class SoftApConfiguration implements Parcelable {
          * @return Builder for chaining.
          *
          * @see #setBssid(MacAddress)
+         *
+         * @hide
          */
         @RequiresApi(Build.VERSION_CODES.S)
         @NonNull
+        @SystemApi
         public Builder setMacRandomizationSetting(
                 @MacRandomizationSetting int macRandomizationSetting) {
             if (!SdkLevel.isAtLeastS()) {
@@ -2156,9 +2240,11 @@ public final class SoftApConfiguration implements Parcelable {
          * @param enable true to enable, false to disable.
          * @return Builder for chaining.
          *
+         * @hide
          */
         @RequiresApi(Build.VERSION_CODES.S)
         @NonNull
+        @SystemApi
         public Builder setBridgedModeOpportunisticShutdownEnabled(boolean enable) {
             if (!SdkLevel.isAtLeastS()) {
                 throw new UnsupportedOperationException();
@@ -2184,9 +2270,11 @@ public final class SoftApConfiguration implements Parcelable {
          * @param enable true to enable, false to disable.
          * @return Builder for chaining.
          *
+         * @hide
          */
         @RequiresApi(Build.VERSION_CODES.S)
         @NonNull
+        @SystemApi
         public Builder setIeee80211axEnabled(boolean enable) {
             if (!SdkLevel.isAtLeastS()) {
                 throw new UnsupportedOperationException();
@@ -2212,9 +2300,11 @@ public final class SoftApConfiguration implements Parcelable {
          * @param enable true to enable, false to disable.
          * @return Builder for chaining.
          *
+         * @hide
          */
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
         @NonNull
+        @SystemApi
         public Builder setIeee80211beEnabled(boolean enable) {
             if (!SdkLevel.isAtLeastT()) {
                 throw new UnsupportedOperationException();
@@ -2257,9 +2347,12 @@ public final class SoftApConfiguration implements Parcelable {
          * @return Builder for chaining.
          *
          * @see #setBridgedModeOpportunisticShutdownEnabled(boolean)
+         *
+         * @hide
          */
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
         @NonNull
+        @SystemApi
         public Builder setBridgedModeOpportunisticShutdownTimeoutMillis(
                 @IntRange(from = -1) long timeoutMillis) {
             if (!SdkLevel.isAtLeastT()) {
@@ -2308,10 +2401,13 @@ public final class SoftApConfiguration implements Parcelable {
          * @param vendorData List of {@link OuiKeyedData} containing the vendor-provided
          *     configuration data. Note that multiple elements with the same OUI are allowed.
          * @return Builder for chaining.
+         *
+         * @hide
          */
         @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
         @FlaggedApi(Flags.FLAG_ANDROID_V_WIFI_API)
         @NonNull
+        @SystemApi
         public Builder setVendorData(@NonNull List<OuiKeyedData> vendorData) {
             if (!SdkLevel.isAtLeastV()) {
                 throw new UnsupportedOperationException();
@@ -2320,6 +2416,29 @@ public final class SoftApConfiguration implements Parcelable {
                 throw new IllegalArgumentException("setVendorData received a null value");
             }
             mVendorData = vendorData;
+            return this;
+        }
+
+        /**
+         * Specifies whether or not client isolation is enabled.
+         *
+         * Client isolation can be used to disallow a connected Soft AP
+         * client to communicate with other connected clients.
+         *
+         * @param isClientIsolationEnabled true when enabling client isolation.
+         * @return Builder for chaining.
+         *
+         * @hide
+         */
+        @FlaggedApi(Flags.FLAG_AP_ISOLATE)
+        @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+        @NonNull
+        @SystemApi
+        public Builder setClientIsolationEnabled(boolean isClientIsolationEnabled) {
+            if (!Environment.isSdkAtLeastB()) {
+                throw new UnsupportedOperationException();
+            }
+            mIsClientIsolationEnabled = isClientIsolationEnabled;
             return this;
         }
     }
