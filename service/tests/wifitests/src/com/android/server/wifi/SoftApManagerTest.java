@@ -1334,7 +1334,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
         verify(mWifiNative).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_SECOND_INSTANCE_NAME));
+                eq(TEST_SECOND_INSTANCE_NAME), eq(false));
         mLooper.dispatchAll();
         mTestSoftApInfoMap.clear();
         mTestWifiClientsMap.clear();
@@ -1369,7 +1369,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
         verify(mWifiNative).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_SECOND_INSTANCE_NAME));
+                eq(TEST_SECOND_INSTANCE_NAME), eq(false));
         mLooper.dispatchAll();
         mTestSoftApInfoMap.clear();
         mTestWifiClientsMap.clear();
@@ -1414,7 +1414,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance but SAP off since it can't get instances.
         verify(mWifiNative).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_SECOND_INSTANCE_NAME));
+                eq(TEST_SECOND_INSTANCE_NAME), eq(false));
         mLooper.dispatchAll();
         mTestSoftApInfoMap.clear();
         mTestWifiClientsMap.clear();
@@ -1443,7 +1443,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify AP remains up while waiting for the second instance.
         verify(mWifiNative).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_FIRST_INSTANCE_NAME));
+                eq(TEST_FIRST_INSTANCE_NAME), eq(false));
         verify(mWifiNative, never()).teardownInterface(TEST_INTERFACE_NAME);
     }
 
@@ -3255,7 +3255,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
         verify(mWifiNative).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_SECOND_INSTANCE_NAME));
+                eq(TEST_SECOND_INSTANCE_NAME), eq(false));
         mLooper.dispatchAll();
         mTestSoftApInfoMap.clear();
         mTestWifiClientsMap.clear();
@@ -3349,7 +3349,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
         verify(mWifiNative).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_SECOND_INSTANCE_NAME));
+                eq(TEST_SECOND_INSTANCE_NAME), eq(false));
 
         mTestSoftApInfoMap.clear();
         mTestWifiClientsMap.clear();
@@ -3646,7 +3646,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
         verify(mWifiNative, never()).removeIfaceInstanceFromBridgedApIface(any(),
-                any());
+                any(), anyBoolean());
     }
 
 
@@ -3680,7 +3680,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
         verify(mWifiNative).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_SECOND_INSTANCE_NAME));
+                eq(TEST_SECOND_INSTANCE_NAME), eq(false));
         mLooper.dispatchAll();
         mTestSoftApInfoMap.clear();
         mTestWifiClientsMap.clear();
@@ -3719,7 +3719,8 @@ public class SoftApManagerTest extends WifiBaseTest {
         mCoexListenerCaptor.getValue().onCoexUnsafeChannelsChanged();
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
-        verify(mWifiNative, never()).removeIfaceInstanceFromBridgedApIface(any(), any());
+        verify(mWifiNative, never()).removeIfaceInstanceFromBridgedApIface(any(), any(),
+                anyBoolean());
     }
 
     @Test
@@ -3743,7 +3744,8 @@ public class SoftApManagerTest extends WifiBaseTest {
         mCmiListenerCaptor.getValue().onL2Connected(mConcreteClientModeManager);
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
-        verify(mWifiNative, never()).removeIfaceInstanceFromBridgedApIface(any(), any());
+        verify(mWifiNative, never()).removeIfaceInstanceFromBridgedApIface(any(), any(),
+                anyBoolean());
     }
 
     @Test
@@ -3772,7 +3774,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify the remove correct iface and instance
         verify(mWifiNative).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_SECOND_INSTANCE_NAME));
+                eq(TEST_SECOND_INSTANCE_NAME), eq(false));
         mLooper.dispatchAll();
         mTestSoftApInfoMap.clear();
         mTestWifiClientsMap.clear();
@@ -3812,7 +3814,7 @@ public class SoftApManagerTest extends WifiBaseTest {
         mLooper.dispatchAll();
         // Verify instance not removed
         verify(mWifiNative, never()).removeIfaceInstanceFromBridgedApIface(eq(TEST_INTERFACE_NAME),
-                eq(TEST_SECOND_INSTANCE_NAME));
+                eq(TEST_SECOND_INSTANCE_NAME), eq(false));
     }
 
     @Test
