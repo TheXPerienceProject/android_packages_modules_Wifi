@@ -736,6 +736,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         public void onReceive(Context context, Intent intent) {
                             Log.d(TAG, "locale changed");
                             resetNotificationManager();
+                            mResourceCache.handleLocaleChange();
                         }
                     },
                     new IntentFilter(Intent.ACTION_LOCALE_CHANGED),
@@ -803,6 +804,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     private void resetCarrierNetworks(@ClientModeImpl.ResetSimReason int resetReason) {
+        mResourceCache.reset();
         Log.d(TAG, "resetting carrier networks since SIM was changed");
         if (resetReason == RESET_SIM_REASON_SIM_INSERTED) {
             // clear all SIM related notifications since some action was taken to address
