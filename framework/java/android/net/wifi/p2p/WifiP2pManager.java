@@ -977,6 +977,17 @@ public class WifiP2pManager {
     @FlaggedApi(Flags.FLAG_WIFI_DIRECT_R2)
     public static final int NO_PERMISSION = 4;
 
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(value = {
+            ERROR,
+            P2P_UNSUPPORTED,
+            BUSY,
+            NO_PERMISSION
+    })
+    public @interface FailureReason{}
+
+
     /** Interface for callback invocation when framework channel is lost */
     public interface ChannelListener {
         /**
@@ -4014,7 +4025,7 @@ public class WifiP2pManager {
          * The operation failed.
          * @param reason The reason for failure.
          */
-        void onFailure(int reason);
+        void onFailure(@FailureReason int reason);
     }
 
     /**
@@ -4078,7 +4089,7 @@ public class WifiP2pManager {
                     }
 
                     @Override
-                    public void onFailure(int reason) {
+                    public void onFailure(@FailureReason int reason) {
                         Binder.clearCallingIdentity();
                         executor.execute(() -> {
                             callback.onError(reasonCodeToException(reason));
