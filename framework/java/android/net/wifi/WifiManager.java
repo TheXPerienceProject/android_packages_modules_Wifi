@@ -81,7 +81,6 @@ import android.os.RemoteException;
 import android.os.WorkSource;
 import android.os.connectivity.WifiActivityEnergyInfo;
 import android.security.advancedprotection.AdvancedProtectionFeature;
-import android.security.advancedprotection.AdvancedProtectionManager;
 import android.telephony.SubscriptionInfo;
 import android.text.TextUtils;
 import android.util.ArraySet;
@@ -4063,6 +4062,11 @@ public class WifiManager {
      * @hide
      */
     public static final int WIFI_FEATURE_SOFTAP_MLO = 63;
+
+    /**
+     * NOTE: When adding a new WIFI_FEATURE_ value, also be sure to update
+     * {@link com.android.server.wifi.util.FeatureBitsetUtils}
+     */
 
     private boolean isFeatureSupported(int feature) {
         try {
@@ -13232,8 +13236,8 @@ public class WifiManager {
         }
         List<AdvancedProtectionFeature> features = new ArrayList<>();
         if (Flags.wepDisabledInApm()) {
-            features.add(new AdvancedProtectionFeature(
-                    AdvancedProtectionManager.FEATURE_ID_DISALLOW_WEP));
+            // TODO: b/362586268 Change to AdvancedProtectionManager.FEATURE_ID_DISALLOW_WEP
+            features.add(new AdvancedProtectionFeature("WEP"));
         }
         return features;
     }
