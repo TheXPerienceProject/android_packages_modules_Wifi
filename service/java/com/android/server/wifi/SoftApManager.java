@@ -328,7 +328,8 @@ public class SoftApManager implements ActiveModeManager {
         public void onInfoChanged(String apIfaceInstance, int frequency,
                 @WifiAnnotations.Bandwidth int bandwidth,
                 @WifiAnnotations.WifiStandard int generation,
-                MacAddress apIfaceInstanceMacAddress,
+                @Nullable MacAddress apIfaceInstanceMacAddress,
+                @Nullable MacAddress mldAddress,
                 @NonNull List<OuiKeyedData> vendorData) {
             SoftApInfo apInfo = new SoftApInfo();
             apInfo.setFrequency(frequency);
@@ -336,6 +337,9 @@ public class SoftApManager implements ActiveModeManager {
             apInfo.setWifiStandard(generation);
             if (apIfaceInstanceMacAddress != null) {
                 apInfo.setBssid(apIfaceInstanceMacAddress);
+            }
+            if (mldAddress != null) {
+                apInfo.setMldAddress(mldAddress);
             }
             apInfo.setApInstanceIdentifier(apIfaceInstance != null
                     ? apIfaceInstance : mApInterfaceName);
@@ -1631,7 +1635,7 @@ public class SoftApManager implements ActiveModeManager {
                             + mCurrentSoftApInfoMap.get(instanceName).getFrequency()
                             + ") from bridged iface " + mApInterfaceName);
                     mWifiNative.removeIfaceInstanceFromBridgedApIface(mApInterfaceName,
-                            instanceName);
+                            instanceName, mIsUsingMlo);
                     // Remove the info and update it.
                     updateSoftApInfo(mCurrentSoftApInfoMap.get(instanceName), true);
                 }

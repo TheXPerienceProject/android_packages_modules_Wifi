@@ -290,7 +290,7 @@ public class WifiNative {
         @Override
         public void onSoftApChannelSwitched(int frequency, int bandwidth) {
             mSoftApHalCallback.onInfoChanged(mIfaceName, frequency, bandwidth,
-                    ScanResult.WIFI_STANDARD_UNKNOWN, null, Collections.emptyList());
+                    ScanResult.WIFI_STANDARD_UNKNOWN, null, null, Collections.emptyList());
         }
 
         @Override
@@ -349,11 +349,15 @@ public class WifiNative {
          *                     indication that the SoftAp is not enabled.
          * @param bandwidth The new bandwidth of the SoftAp.
          * @param generation The new generation of the SoftAp.
+         * @param apIfaceInstanceMacAddress MAC Address of the apIfaceInstance.
+         * @param mldMacAddress MAC Address of the multiple link device (MLD) which apIfaceInstance
+         *                      is associated with.
          * @param vendorData List of {@link OuiKeyedData} containing vendor-specific configuration
          *                   data, or empty list if not provided.
          */
         void onInfoChanged(String apIfaceInstance, int frequency, int bandwidth,
-                int generation, MacAddress apIfaceInstanceMacAddress,
+                int generation, @Nullable MacAddress apIfaceInstanceMacAddress,
+                @Nullable MacAddress mldMacAddress,
                 @NonNull List<OuiKeyedData> vendorData);
         /**
          * Invoked when there is a change in the associated station (STA).
@@ -1434,11 +1438,16 @@ public class WifiNative {
      *
      * @param ifaceName Name of the iface.
      * @param apIfaceInstance The identity of the ap instance.
+     * @param isMloAp true when current access point is using multiple link operation.
      * @return true if the operation succeeded, false if there is an error in Hal.
      */
     public boolean removeIfaceInstanceFromBridgedApIface(@NonNull String ifaceName,
-            @NonNull String apIfaceInstance) {
+            @NonNull String apIfaceInstance, boolean isMloAp) {
         synchronized (mLock) {
+            if (isMloAp && mHostapdHal != null && Flags.mloSap()) {
+                mHostapdHal.removeLinkFromMultipleLinkBridgedApIface(ifaceName,
+                        apIfaceInstance);
+            }
             if (mWifiVendorHal.isVendorHalSupported()) {
                 return mWifiVendorHal.removeIfaceInstanceFromBridgedApIface(ifaceName,
                         apIfaceInstance);
