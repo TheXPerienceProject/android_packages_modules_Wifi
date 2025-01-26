@@ -2034,8 +2034,13 @@ public class WifiP2pManager {
                 }
             } else {
                 if (mServRspListener != null) {
-                    mServRspListener.onServiceAvailable(resp.getServiceType(),
-                            resp.getRawData(), resp.getSrcDevice());
+                    if (Flags.wifiDirectR2() && resp.getWifiP2pUsdBasedServiceResponse() != null) {
+                        mServRspListener.onUsdBasedServiceAvailable(
+                                resp.getSrcDevice(), resp.getWifiP2pUsdBasedServiceResponse());
+                    } else {
+                        mServRspListener.onServiceAvailable(resp.getServiceType(),
+                                resp.getRawData(), resp.getSrcDevice());
+                    }
                 }
             }
         }
@@ -2734,6 +2739,12 @@ public class WifiP2pManager {
             ActionListener listener) {
         checkChannel(channel);
         checkServiceInfo(servInfo);
+        if (Environment.isSdkAtLeastB()) {
+            if (servInfo.getWifiP2pUsdBasedServiceConfig() != null) {
+                throw new UnsupportedOperationException("Application must call"
+                        + " WifiP2pManager#startUsdBasedLocalServiceAdvertisement for USD config");
+            }
+        }
         Bundle extras = prepareExtrasBundle(channel);
         extras.putParcelable(EXTRA_PARAM_KEY_SERVICE_INFO, servInfo);
         channel.mAsyncChannel.sendMessage(prepareMessage(ADD_LOCAL_SERVICE, 0,
@@ -2759,6 +2770,10 @@ public class WifiP2pManager {
      * <p>The service information can be cleared with calls to
      *  {@link #removeLocalService} or {@link #clearLocalServices}.
      * <p>
+     * Use {@link #isWiFiDirectR2Supported()} to determine whether the device supports
+     * this feature. If {@link #isWiFiDirectR2Supported()} return {@code false} then
+     * this method will throw {@link UnsupportedOperationException}.
+     * <p>
      * The application must have {@link android.Manifest.permission#NEARBY_WIFI_DEVICES} with
      * android:usesPermissionFlags="neverForLocation". If the application does not declare
      * android:usesPermissionFlags="neverForLocation", then it must also have
@@ -2781,6 +2796,9 @@ public class WifiP2pManager {
             @NonNull WifiP2pUsdBasedLocalServiceAdvertisementConfig config,
             @Nullable ActionListener listener) {
         if (!Environment.isSdkAtLeastB()) {
+            throw new UnsupportedOperationException();
+        }
+        if (!isWiFiDirectR2Supported()) {
             throw new UnsupportedOperationException();
         }
         checkChannel(channel);
@@ -2942,6 +2960,10 @@ public class WifiP2pManager {
      * {@link #setServiceResponseListener(Channel, ServiceResponseListener)} .
      *
      * <p>
+     * Use {@link #isWiFiDirectR2Supported()} to determine whether the device supports
+     * this feature. If {@link #isWiFiDirectR2Supported()} return {@code false} then
+     * this method will throw {@link UnsupportedOperationException}.
+     * <p>
      * The application must have {@link android.Manifest.permission#NEARBY_WIFI_DEVICES} with
      * android:usesPermissionFlags="neverForLocation". If the application does not declare
      * android:usesPermissionFlags="neverForLocation", then it must also have
@@ -2964,6 +2986,9 @@ public class WifiP2pManager {
         if (!Environment.isSdkAtLeastB()) {
             throw new UnsupportedOperationException();
         }
+        if (!isWiFiDirectR2Supported()) {
+            throw new UnsupportedOperationException();
+        }
         checkChannel(channel);
         Objects.requireNonNull(config, "Service discovery config cannot be null");
         Bundle extras = prepareExtrasBundle(channel);
@@ -2981,6 +3006,13 @@ public class WifiP2pManager {
      * add service through listener callbacks {@link ActionListener#onSuccess} or
      * {@link ActionListener#onFailure}.
      *
+     * <p> The USD based service information are set in the service request through
+     * {@link WifiP2pServiceRequest#WifiP2pServiceRequest(WifiP2pUsdBasedServiceConfig)}.
+     * Application must use {@link #isWiFiDirectR2Supported()} to determine whether the device
+     * supports USD based service discovery. If {@link #isWiFiDirectR2Supported()} return
+     * {@code false} then this method will throw {@link UnsupportedOperationException} for service
+     * request information containing USD service configuration.
+     *
      * <p>After service discovery request is added, you can initiate service discovery by
      * {@link #discoverServices}.
      *
@@ -2996,6 +3028,11 @@ public class WifiP2pManager {
             WifiP2pServiceRequest req, ActionListener listener) {
         checkChannel(channel);
         checkServiceRequest(req);
+        if (Environment.isSdkAtLeastB()) {
+            if (req.getWifiP2pUsdBasedServiceConfig() != null && !isWiFiDirectR2Supported()) {
+                throw new UnsupportedOperationException();
+            }
+        }
         channel.mAsyncChannel.sendMessage(ADD_SERVICE_REQUEST, 0,
                 channel.putListener(listener), req);
     }
