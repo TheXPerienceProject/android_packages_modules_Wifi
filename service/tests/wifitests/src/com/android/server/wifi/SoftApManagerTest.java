@@ -171,6 +171,9 @@ public class SoftApManagerTest extends WifiBaseTest {
     private static final WifiClient TEST_DISCONNECTED_CLIENT =
             new WifiClient(TEST_CLIENT_MAC_ADDRESS, TEST_INTERFACE_NAME,
                     TEST_DISCONNECT_REASON);
+    private static final WifiClient TEST_DISCONNECTED_CLIENT_ON_FIRST_IFACE =
+            new WifiClient(TEST_CLIENT_MAC_ADDRESS, TEST_FIRST_INSTANCE_NAME,
+                    TEST_DISCONNECT_REASON);
     private static final WifiClient TEST_DISCONNECTED_CLIENT_2_ON_FIRST_IFACE =
             new WifiClient(TEST_CLIENT_MAC_ADDRESS_2, TEST_FIRST_INSTANCE_NAME,
                     TEST_DISCONNECT_REASON);
@@ -1669,6 +1672,8 @@ public class SoftApManagerTest extends WifiBaseTest {
         verify(mCallback).onClientsDisconnected(eq(mTestSoftApInfo),
                 eq(ImmutableList.of(TEST_DISCONNECTED_CLIENT)));
 
+        verify(mWifiMetrics).reportOnClientsDisconnected(
+                eq(TEST_DISCONNECT_REASON), eq(TEST_WORKSOURCE));
         verify(mWifiMetrics)
                 .addSoftApNumAssociatedStationsChangedEvent(0, 0,
                 apConfig.getTargetMode(), mTestSoftApInfo);
@@ -3371,6 +3376,8 @@ public class SoftApManagerTest extends WifiBaseTest {
         reset(mAlarmManager.getAlarmManager());
         mockClientConnectedEvent(TEST_CLIENT_MAC_ADDRESS, false, TEST_FIRST_INSTANCE_NAME, true);
         mLooper.dispatchAll();
+        verify(mCallback).onClientsDisconnected(eq(mTestSoftApInfoOnFirstInstance),
+                eq(ImmutableList.of(TEST_DISCONNECTED_CLIENT_ON_FIRST_IFACE)));
         // Verify timer is scheduled
         verify(mAlarmManager.getAlarmManager()).setExact(anyInt(), anyLong(),
                 eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG + TEST_INTERFACE_NAME),
@@ -3379,6 +3386,8 @@ public class SoftApManagerTest extends WifiBaseTest {
         verify(mAlarmManager.getAlarmManager(), never()).setExact(anyInt(), anyLong(),
                 eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG + TEST_FIRST_INSTANCE_NAME),
                 any(), any());
+        verify(mWifiMetrics, times(3)).reportOnClientsDisconnected(
+                eq(TEST_DISCONNECT_REASON), eq(TEST_WORKSOURCE));
     }
 
     @Test
