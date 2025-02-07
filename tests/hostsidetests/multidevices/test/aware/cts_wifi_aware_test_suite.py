@@ -11,29 +11,31 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
+"""CTS Wi-Fi Aware test suite."""
 
-# Lint as: python3
-"""CTS Wi-Fi Direct test suite."""
+import sys
 
+from aware import wifi_aware_discovery_ranging_test
+from aware import wifi_aware_network_test
 from mobly import base_suite
 from mobly import suite_runner
 
-from direct import group_owner_negotiation_test
-from direct import group_owner_test
-from direct import group_owner_with_config_test
 
-
-class CtsWifiDirectTestSuite(base_suite.BaseSuite):
-    """CTS Wi-Fi Direct test suite."""
+class CtsWifiAwareTestSuite(base_suite.BaseSuite):
+    """CTS Wi-Fi Aware test suite."""
 
     def setup_suite(self, config):
         del config  # unused
+        self.add_test_class(wifi_aware_network_test.WifiAwareNetworkTest)
         self.add_test_class(
-            group_owner_negotiation_test.GroupOwnerNegotiationTest
+            wifi_aware_discovery_ranging_test.WifiAwareDiscoveryRangingTest
         )
-        self.add_test_class(group_owner_test.GroupOwnerTest)
-        self.add_test_class(group_owner_with_config_test.GroupOwnerWithConfigTest)
 
 
 if __name__ == '__main__':
+    # Take test args
+    if '--' in sys.argv:
+        index = sys.argv.index('--')
+        sys.argv = sys.argv[:1] + sys.argv[index + 1 :]
+
     suite_runner.run_suite_class()
