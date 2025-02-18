@@ -55,6 +55,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.net.MacAddress;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -7425,9 +7426,11 @@ public class WifiMetrics {
                             WifiLinkLayerStats.ScanResultWithSameFreq linkLayerScanResult =
                                     link.scan_results_same_freq.get(scanResultsIndex);
                             if (linkLayerScanResult != null) {
-                                String wifiLinkBssid = (mloLinks.size() > 0)
+                                MacAddress apMacAddress = (mloLinks.size() > 0)
                                         ? mloLinks.get(link.link_id, new MloLink())
-                                        .getApMacAddress().toString() : info.getBSSID();
+                                        .getApMacAddress() : null;
+                                String wifiLinkBssid = apMacAddress != null
+                                        ? apMacAddress.toString() : info.getBSSID();
                                 if (!linkLayerScanResult.bssid.equals(wifiLinkBssid)) {
                                     ScanResultWithSameFreq scanResultWithSameFreq =
                                             new ScanResultWithSameFreq();
