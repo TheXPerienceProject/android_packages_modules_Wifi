@@ -6942,6 +6942,8 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             mSavedPeerConfig = new WifiP2pConfig.Builder()
                     .setDeviceAddress(MacAddress.fromString(device.deviceAddress))
                     .setPairingBootstrappingConfig(pairingBootstrappingConfig)
+                    .setGroupClientIpProvisioningMode(
+                            GROUP_CLIENT_IP_PROVISIONING_MODE_IPV6_LINK_LOCAL)
                     .build();
             mPeers.updateStatus(device.deviceAddress, WifiP2pDevice.INVITED);
             sendPeersChangedBroadcast();
@@ -6981,6 +6983,8 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 mSavedPeerConfig = new WifiP2pConfig.Builder()
                         .setDeviceAddress(MacAddress.fromString(device.deviceAddress))
                         .setPairingBootstrappingConfig(pairingBootstrappingConfig)
+                        .setGroupClientIpProvisioningMode(
+                                GROUP_CLIENT_IP_PROVISIONING_MODE_IPV6_LINK_LOCAL)
                         .build();
                 mPeers.updateStatus(device.deviceAddress, WifiP2pDevice.INVITED);
                 sendPeersChangedBroadcast();
@@ -7025,6 +7029,8 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 mSavedPeerConfig = new WifiP2pConfig.Builder()
                         .setDeviceAddress(MacAddress.fromString(device.deviceAddress))
                         .setPairingBootstrappingConfig(pairingBootstrappingConfig)
+                        .setGroupClientIpProvisioningMode(
+                                GROUP_CLIENT_IP_PROVISIONING_MODE_IPV6_LINK_LOCAL)
                         .build();
                 if (provDisc.getVendorData() != null) {
                     mSavedPeerConfig.setVendorData(provDisc.getVendorData());
