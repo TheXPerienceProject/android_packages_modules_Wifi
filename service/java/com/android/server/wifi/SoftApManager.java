@@ -300,6 +300,8 @@ public class SoftApManager implements ActiveModeManager {
 
     private boolean mIsSoftApStartedEventWritten = false;
 
+    private int mMaxConnectedClients = 0;
+
     /**
      * A map stores shutdown timeouts for each Soft Ap instance.
      * There are three timeout messages now.
@@ -1778,6 +1780,8 @@ public class SoftApManager implements ActiveModeManager {
                     boolean isAllow = checkSoftApClient(mCurrentSoftApConfiguration, client);
                     if (isAllow) {
                         clientList.add(client);
+                        mMaxConnectedClients = clientList.size() > mMaxConnectedClients
+                                ? clientList.size() : mMaxConnectedClients;
                     } else {
                         return;
                     }
@@ -2446,7 +2450,7 @@ public class SoftApManager implements ActiveModeManager {
                 durationSeconds,
                 securityType,
                 standard,
-                -1,
+                mMaxConnectedClients,
                 mDefaultShutdownIdleInstanceInBridgedModeTimeoutMillis > 0,
                 -1,
                 -1,
