@@ -23,12 +23,15 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.system.wifi.mainline_supplicant.IMainlineSupplicant;
+import android.system.wifi.mainline_supplicant.IStaInterface;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.WifiNative;
 import com.android.wifi.flags.Flags;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -49,6 +52,7 @@ public class MainlineSupplicant {
     private WifiNative.SupplicantDeathEventHandler mFrameworkDeathHandler;
     private CountDownLatch mWaitForDeathLatch;
     private final boolean mIsServiceAvailable;
+    private Map<String, IStaInterface> mActiveStaIfaces = new HashMap<>();
 
     public MainlineSupplicant() {
         mServiceDeathRecipient = new SupplicantDeathRecipient();
@@ -89,7 +93,7 @@ public class MainlineSupplicant {
                     // Latch indicates that this event was triggered by stopService
                     mWaitForDeathLatch.countDown();
                 }
-                mIMainlineSupplicant = null;
+                clearState();
                 if (mFrameworkDeathHandler != null) {
                     mFrameworkDeathHandler.onDeath();
                 }
@@ -112,6 +116,16 @@ public class MainlineSupplicant {
      */
     public boolean isAvailable() {
         return mIsServiceAvailable;
+    }
+
+    /**
+     * Reset the internal state for this instance.
+     */
+    private void clearState() {
+        synchronized (mLock) {
+            mIMainlineSupplicant = null;
+            mActiveStaIfaces.clear();
+        }
     }
 
     /**
@@ -153,10 +167,77 @@ public class MainlineSupplicant {
     /**
      * Check whether this instance is active.
      */
-    @VisibleForTesting
-    protected boolean isActive() {
+    public boolean isActive() {
         synchronized (mLock) {
             return mIMainlineSupplicant != null;
+        }
+    }
+
+    /**
+     * Set up a STA interface with the specified iface name.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    public boolean addStaInterface(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            final String methodName = "addStaInterface";
+            if (!checkIsActiveAndLogError(methodName)) {
+                return false;
+            }
+            if (ifaceName == null) {
+                return false;
+            }
+            if (mActiveStaIfaces.containsKey(ifaceName)) {
+                Log.i(TAG, "STA interface " + ifaceName + " already exists");
+                return true;
+            }
+
+            try {
+                IStaInterface staIface = mIMainlineSupplicant.addStaInterface(ifaceName);
+                mActiveStaIfaces.put(ifaceName, staIface);
+                Log.i(TAG, "Added STA interface " + ifaceName);
+                return true;
+            } catch (ServiceSpecificException e) {
+                handleServiceSpecificException(e, methodName);
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodName);
+            }
+            return false;
+        }
+    }
+
+    /**
+     * Tear down the STA interface with the specified iface name.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    public boolean removeStaInterface(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            final String methodName = "removeStaInterface";
+            if (!checkIsActiveAndLogError(methodName)) {
+                return false;
+            }
+            if (ifaceName == null) {
+                return false;
+            }
+            if (!mActiveStaIfaces.containsKey(ifaceName)) {
+                Log.i(TAG, "STA interface " + ifaceName + " does not exist");
+                return false;
+            }
+
+            try {
+                mIMainlineSupplicant.removeStaInterface(ifaceName);
+                mActiveStaIfaces.remove(ifaceName);
+                Log.i(TAG, "Removed STA interface " + ifaceName);
+                return true;
+            } catch (ServiceSpecificException e) {
+                handleServiceSpecificException(e, methodName);
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodName);
+            }
+            return false;
         }
     }
 
@@ -226,10 +307,18 @@ public class MainlineSupplicant {
         Log.e(TAG, methodName + " encountered ServiceSpecificException " + e);
     }
 
+    private boolean checkIsActiveAndLogError(String methodName) {
+        if (!isActive()) {
+            Log.e(TAG, "Unable to call " + methodName + " since the instance is not active");
+            return false;
+        }
+        return true;
+    }
+
     private void handleRemoteException(RemoteException e, String methodName) {
         synchronized (mLock) {
             Log.e(TAG, methodName + " encountered RemoteException " + e);
-            mIMainlineSupplicant = null;
+            clearState();
         }
     }
 }
