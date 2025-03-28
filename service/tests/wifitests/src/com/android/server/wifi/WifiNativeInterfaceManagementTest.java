@@ -76,6 +76,8 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.MockitoSession;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -149,6 +151,8 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
             mWifiVendorHalRadioModeChangeHandlerCaptor =
             ArgumentCaptor.forClass(WifiNative.VendorHalRadioModeChangeEventHandler.class);
     private ArgumentCaptor<SupplicantDeathEventHandler> mSupplicantDeathHandlerCaptor =
+            ArgumentCaptor.forClass(SupplicantDeathEventHandler.class);
+    private ArgumentCaptor<SupplicantDeathEventHandler> mMainlineSupplicantDeathHandlerCaptor =
             ArgumentCaptor.forClass(SupplicantDeathEventHandler.class);
     private ArgumentCaptor<WifiNative.HostapdDeathEventHandler> mHostapdDeathHandlerCaptor =
             ArgumentCaptor.forClass(WifiNative.HostapdDeathEventHandler.class);
@@ -228,6 +232,32 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
         when(mHostapdHal.removeAccessPoint(any())).thenReturn(true);
         when(mHostapdHal.registerApCallback(any(), any())).thenReturn(true);
 
+        when(mMainlineSupplicant.addStaInterface(anyString())).thenReturn(true);
+        when(mMainlineSupplicant.isAvailable()).thenReturn(true);
+        when(mMainlineSupplicant.removeStaInterface(anyString())).thenReturn(true);
+        when(mMainlineSupplicant.startService()).thenReturn(true);
+
+        /**
+         * Ensure that {@link MainlineSupplicant#isActive()} only returns true if the service has
+         * been started. Otherwise, if the service has been stopped or was never started,
+         * the service is not considered active.
+         */
+        when(mMainlineSupplicant.isActive()).thenReturn(false);
+        doAnswer(new Answer<Boolean>() {
+            @Override
+            public Boolean answer(InvocationOnMock invocation) {
+                when(mMainlineSupplicant.isActive()).thenReturn(true);
+                return true;
+            }
+        }).when(mMainlineSupplicant).startService();
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+                when(mMainlineSupplicant.isActive()).thenReturn(false);
+                return null; // void method returns null
+            }
+        }).when(mMainlineSupplicant).stopService();
+
         when(mWifiGlobals.isWifiInterfaceAddedSelfRecoveryEnabled()).thenReturn(false);
 
         when(mWifiInjector.makeNetdWrapper()).thenReturn(mNetdWrapper);
@@ -261,7 +291,7 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
 
         mInOrder = inOrder(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal, mHostapdHal,
                 mWifiMonitor, mNetdWrapper, mIfaceCallback0, mIfaceCallback1, mIfaceEventCallback0,
-                mWifiMetrics, mWifiP2pNative);
+                mWifiMetrics, mWifiP2pNative, mMainlineSupplicant);
 
         mWifiNative = new WifiNative(
                 mWifiVendorHal, mSupplicantStaIfaceHal, mHostapdHal, mWificondControl,
@@ -287,7 +317,7 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
         }
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mHostapdHal, mWifiMonitor, mNetdWrapper, mIfaceCallback0, mIfaceCallback1,
-                mIfaceEventCallback0, mWifiMetrics);
+                mIfaceEventCallback0, mWifiMetrics, mMainlineSupplicant);
     }
 
     private MockResources getMockResources() {
@@ -540,6 +570,10 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
         verify(mSupplicantStaIfaceHal, atLeastOnce()).isInitializationStarted();
         verify(mSupplicantStaIfaceHal).deregisterDeathHandler();
         verify(mSupplicantStaIfaceHal).terminate();
+        verify(mMainlineSupplicant, atLeastOnce()).isActive();
+        verify(mMainlineSupplicant).removeStaInterface(IFACE_NAME_1);
+        verify(mMainlineSupplicant).unregisterFrameworkDeathHandler();
+        verify(mMainlineSupplicant).stopService();
         verify(mIfaceCallback1).onDestroyed(IFACE_NAME_1);
 
         // Verify AP removal
@@ -602,10 +636,15 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
         mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
         mInOrder.verify(mWifiVendorHal).replaceStaIfaceRequestorWs(ifaceName, workSource);
         mInOrder.verify(mSupplicantStaIfaceHal).teardownIface(ifaceName);
+        mInOrder.verify(mMainlineSupplicant).isActive();
+        mInOrder.verify(mMainlineSupplicant).removeStaInterface(ifaceName);
         mInOrder.verify(mSupplicantStaIfaceHal).isInitializationStarted();
         mInOrder.verify(mSupplicantStaIfaceHal).deregisterDeathHandler();
         mInOrder.verify(mSupplicantStaIfaceHal).isInitializationStarted();
         mInOrder.verify(mSupplicantStaIfaceHal).terminate();
+        mInOrder.verify(mMainlineSupplicant).isActive();
+        mInOrder.verify(mMainlineSupplicant).unregisterFrameworkDeathHandler();
+        mInOrder.verify(mMainlineSupplicant).stopService();
         mInOrder.verify(mSupplicantStaIfaceHal).getAdvancedCapabilities(ifaceName);
         mInOrder.verify(mSupplicantStaIfaceHal).getWpaDriverFeatureSet(ifaceName);
         mInOrder.verify(mWifiVendorHal).getSupportedFeatureSet(ifaceName);
@@ -981,6 +1020,24 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
 
         mInOrder.verify(mWifiMetrics).incrementNumSupplicantCrashes();
 
+        verify(mStatusListener).onStatusChanged(false);
+        verify(mStatusListener).onStatusChanged(true);
+    }
+
+    /**
+     * Verifies the setup of a client interface and mainline supplicant death handling.
+     */
+    @Test
+    public void testSetupClientInterfaceAndMainlineSupplicantDied() throws Exception {
+        executeAndValidateSetupClientInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+        verify(mMainlineSupplicant, times(1))
+                .registerFrameworkDeathHandler(mMainlineSupplicantDeathHandlerCaptor.capture());
+
+        // Trigger mainline supplicant death
+        mMainlineSupplicantDeathHandlerCaptor.getValue().onDeath();
+        mLooper.dispatchAll();
         verify(mStatusListener).onStatusChanged(false);
         verify(mStatusListener).onStatusChanged(true);
     }
@@ -1404,20 +1461,26 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
             mInOrder.verify(mSupplicantStaIfaceHal).isInitializationComplete();
             mInOrder.verify(mSupplicantStaIfaceHal).registerDeathHandler(any());
             when(mSupplicantStaIfaceHal.isInitializationStarted()).thenReturn(true);
+
+            mInOrder.verify(mMainlineSupplicant).isAvailable();
+            mInOrder.verify(mMainlineSupplicant).startService();
+            mInOrder.verify(mMainlineSupplicant).registerFrameworkDeathHandler(any());
         }
         mInOrder.verify(mSupplicantStaIfaceHal).setupIface(ifaceName);
         if (failureCode == STA_FAILURE_CODE_SETUP_INTERFACE) {
             mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
             mInOrder.verify(mWifiVendorHal).removeStaIface(ifaceName);
             mInOrder.verify(mWifiMetrics).incrementNumSetupClientInterfaceFailureDueToSupplicant();
-        } else {
-            mInOrder.verify(mSupplicantStaIfaceHal).getAdvancedCapabilities(ifaceName);
-            mInOrder.verify(mSupplicantStaIfaceHal).getWpaDriverFeatureSet(ifaceName);
-            mInOrder.verify(mWifiVendorHal).getSupportedFeatureSet(ifaceName);
-            mInOrder.verify(mWifiVendorHal).getTwtCapabilities(ifaceName);
-            mInOrder.verify(mSupplicantStaIfaceHal).getUsdCapabilities(ifaceName);
-            mInOrder.verify(mWifiVendorHal).getUsableChannels(anyInt(), anyInt(), anyInt());
+            return;
         }
+        mInOrder.verify(mMainlineSupplicant).isActive();
+        mInOrder.verify(mMainlineSupplicant).addStaInterface(ifaceName);
+        mInOrder.verify(mSupplicantStaIfaceHal).getAdvancedCapabilities(ifaceName);
+        mInOrder.verify(mSupplicantStaIfaceHal).getWpaDriverFeatureSet(ifaceName);
+        mInOrder.verify(mWifiVendorHal).getSupportedFeatureSet(ifaceName);
+        mInOrder.verify(mWifiVendorHal).getTwtCapabilities(ifaceName);
+        mInOrder.verify(mSupplicantStaIfaceHal).getUsdCapabilities(ifaceName);
+        mInOrder.verify(mWifiVendorHal).getUsableChannels(anyInt(), anyInt(), anyInt());
     }
 
     /**
@@ -1507,6 +1570,7 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
                 false, false, true, IFACE_NAME_0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0, true, 0);
         verify(mSupplicantStaIfaceHal, atLeastOnce()).isInitializationStarted();
+        verify(mMainlineSupplicant, atLeastOnce()).isActive();
         verify(mWifiVendorHal, never()).stopVendorHal();
         verify(mWifiP2pNative).stopP2pSupplicantIfNecessary();
     }
@@ -1741,6 +1805,8 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
             mInOrder.verify(mNetdWrapper).unregisterObserver(networkObserver);
         }
         mInOrder.verify(mSupplicantStaIfaceHal).teardownIface(ifaceName);
+        mInOrder.verify(mMainlineSupplicant).isActive();
+        mInOrder.verify(mMainlineSupplicant).removeStaInterface(anyString());
         mInOrder.verify(mWificondControl).tearDownClientInterface(ifaceName);
 
         if (!anyOtherStaIface) {
@@ -1751,6 +1817,9 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
                 mInOrder.verify(mSupplicantStaIfaceHal).terminate();
             }
             when(mSupplicantStaIfaceHal.isInitializationStarted()).thenReturn(false);
+            mInOrder.verify(mMainlineSupplicant).isActive();
+            mInOrder.verify(mMainlineSupplicant).unregisterFrameworkDeathHandler();
+            mInOrder.verify(mMainlineSupplicant).stopService();
         }
         if (!anyOtherStaIface && !anyOtherApIface && !anyOtherP2pIface && !anyOtherNanIface) {
             mInOrder.verify(mWificondControl).tearDownInterfaces();
@@ -2075,6 +2144,8 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
                         mNetworkObserverCaptor0.getValue());
                 if (mWifiNative.hasAnyStaIfaceForConnectivity()) {
                     mInOrder.verify(mSupplicantStaIfaceHal).teardownIface(ifaceName);
+                    mInOrder.verify(mMainlineSupplicant).isActive();
+                    mInOrder.verify(mMainlineSupplicant).removeStaInterface(ifaceName);
                 }
                 mInOrder.verify(mWificondControl).tearDownClientInterface(ifaceName);
                 if (mWifiNative.hasAnyStaIfaceForConnectivity()) {
@@ -2082,6 +2153,8 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
                     mInOrder.verify(mSupplicantStaIfaceHal).deregisterDeathHandler();
                     mInOrder.verify(mSupplicantStaIfaceHal).isInitializationStarted();
                     mInOrder.verify(mSupplicantStaIfaceHal).terminate();
+                    mInOrder.verify(mMainlineSupplicant).isActive();
+                    mInOrder.verify(mMainlineSupplicant).stopService();
                     when(mSupplicantStaIfaceHal.isInitializationStarted()).thenReturn(false);
                 }
                 mInOrder.verify(mWifiVendorHal).isVendorHalReady();
@@ -2284,6 +2357,11 @@ public class WifiNativeInterfaceManagementTest extends WifiBaseTest {
                 if (!anyOtherP2pIface) {
                     mInOrder.verify(mWifiP2pNative).stopP2pSupplicantIfNecessary();
                 }
+            }
+            mInOrder.verify(mMainlineSupplicant, atLeastOnce()).isActive();
+            if (isSupplicantStartedBefore) {
+                mInOrder.verify(mMainlineSupplicant).unregisterFrameworkDeathHandler();
+                mInOrder.verify(mMainlineSupplicant).stopService();
             }
         }
     }

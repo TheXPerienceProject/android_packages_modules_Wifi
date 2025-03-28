@@ -39,10 +39,10 @@ import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
@@ -432,9 +432,9 @@ public class HalDeviceManagerTest extends WifiBaseTest {
         chipMock.interfaceNames.get(WifiChip.IFACE_TYPE_STA).add("wlan0");
 
         // Now try to request a NAN.
-        WifiNanIface nanIface2 =
+        WifiNanIface nanIface =
                 mDut.createNanIface(nanDestroyedListener, mHandler, TEST_WORKSOURCE_0);
-        collector.checkThat("NAN can't be created", nanIface2, IsNull.nullValue());
+        collector.checkThat("NAN can't be created", nanIface, IsNull.nullValue());
         mTestLooper.dispatchAll();
 
         // verify that Wi-Fi is shut-down.
