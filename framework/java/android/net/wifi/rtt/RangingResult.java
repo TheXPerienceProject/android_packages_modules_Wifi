@@ -197,6 +197,14 @@ public final class RangingResult implements Parcelable {
             mR2iTxLtfRepetitions = other.mR2iTxLtfRepetitions;
             mNumTxSpatialStreams = other.mNumTxSpatialStreams;
             mNumRxSpatialStreams = other.mNumRxSpatialStreams;
+            mIsRangingAuthenticated = other.mIsRangingAuthenticated;
+            mIsRangingFrameProtected = other.mIsRangingFrameProtected;
+            mIsSecureHeLtfEnabled = other.mIsSecureHeLtfEnabled;
+            mSecureHeLtfProtocolVersion = other.mSecureHeLtfProtocolVersion;
+            if (other.mPasnComebackCookie != null) {
+                mPasnComebackCookie = other.mPasnComebackCookie.clone();
+                mPasnComebackAfterMillis = other.mPasnComebackAfterMillis;
+            }
             mVendorData = new ArrayList<>(other.mVendorData);
         }
 
@@ -1251,11 +1259,11 @@ public final class RangingResult implements Parcelable {
                 .append(", numTxSpatialStreams=").append(mNumTxSpatialStreams)
                 .append(", numRxSpatialStreams=").append(mNumRxSpatialStreams)
                 .append(", vendorData=").append(mVendorData)
-                .append(", isRangingAuthenticated").append(mIsRangingAuthenticated)
-                .append(", isRangingFrameProtected").append(mIsRangingFrameProtected)
-                .append(", isSecureHeLtfEnabled").append(mIsSecureHeLtfEnabled)
-                .append(", pasnComebackCookie").append(Arrays.toString(mPasnComebackCookie))
-                .append(", pasnComebackAfterMillis").append(mPasnComebackAfterMillis)
+                .append(", isRangingAuthenticated=").append(mIsRangingAuthenticated)
+                .append(", isRangingFrameProtected=").append(mIsRangingFrameProtected)
+                .append(", isSecureHeLtfEnabled=").append(mIsSecureHeLtfEnabled)
+                .append(", pasnComebackCookie=").append(Arrays.toString(mPasnComebackCookie))
+                .append(", pasnComebackAfterMillis=").append(mPasnComebackAfterMillis)
                 .append("]").toString();
     }
 

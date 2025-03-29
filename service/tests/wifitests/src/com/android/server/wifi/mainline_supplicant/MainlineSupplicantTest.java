@@ -16,7 +16,9 @@
 
 package com.android.server.wifi.mainline_supplicant;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -27,12 +29,17 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.net.wifi.usd.PublishConfig;
+import android.net.wifi.usd.SubscribeConfig;
 import android.net.wifi.util.Environment;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.test.TestLooper;
 import android.system.wifi.mainline_supplicant.IMainlineSupplicant;
 import android.system.wifi.mainline_supplicant.IStaInterface;
 
 import com.android.server.wifi.WifiNative;
+import com.android.server.wifi.WifiThreadRunner;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -45,12 +52,14 @@ import org.mockito.MockitoAnnotations;
  */
 public class MainlineSupplicantTest {
     private static final String IFACE_NAME = "wlan0";
+    private static final String USD_SERVICE_NAME = "usd_service";
 
     private @Mock IMainlineSupplicant mIMainlineSupplicantMock;
     private @Mock IBinder mIBinderMock;
     private @Mock WifiNative.SupplicantDeathEventHandler mFrameworkDeathHandler;
     private @Mock IStaInterface mIStaInterface;
     private MainlineSupplicantSpy mDut;
+    private TestLooper mLooper = new TestLooper();
 
     private ArgumentCaptor<IBinder.DeathRecipient> mDeathRecipientCaptor =
             ArgumentCaptor.forClass(IBinder.DeathRecipient.class);
@@ -58,7 +67,7 @@ public class MainlineSupplicantTest {
     // Spy version of this class allows us to override methods for testing.
     private class MainlineSupplicantSpy extends MainlineSupplicant {
         MainlineSupplicantSpy() {
-            super();
+            super(new WifiThreadRunner(new Handler(mLooper.getLooper())));
         }
 
         @Override
@@ -171,5 +180,38 @@ public class MainlineSupplicantTest {
 
         // Only the valid remove request should reach have reached the service
         verify(mIMainlineSupplicantMock, times(1)).removeStaInterface(anyString());
+    }
+
+    private void verifyUsdBaseConfigDefaultValues(IStaInterface.UsdBaseConfig baseConfig) {
+        assertNotNull(baseConfig.serviceName);
+        assertNotNull(baseConfig.freqsMhz);
+        assertNotNull(baseConfig.serviceSpecificInfo);
+        assertNotNull(baseConfig.rxMatchFilter);
+        assertNotNull(baseConfig.txMatchFilter);
+        assertEquals(MainlineSupplicant.DEFAULT_USD_FREQ_MHZ, baseConfig.defaultFreqMhz);
+    }
+
+    /**
+     * Verify that the proper default values are assigned during the
+     * USD Publish Config conversion.
+     */
+    @Test
+    public void testUsdPublishConfigConversionDefaultValues() {
+        PublishConfig frameworkConfig = new PublishConfig.Builder(USD_SERVICE_NAME).build();
+        IStaInterface.UsdPublishConfig aidlConfig =
+                MainlineSupplicant.frameworkToHalUsdPublishConfig(frameworkConfig);
+        verifyUsdBaseConfigDefaultValues(aidlConfig.baseConfig);
+    }
+
+    /**
+     * Verify that the proper default values are assigned during the
+     * USD Subscribe Config conversion.
+     */
+    @Test
+    public void testUsdSubscribeConfigConversionDefaultValues() {
+        SubscribeConfig frameworkConfig = new SubscribeConfig.Builder(USD_SERVICE_NAME).build();
+        IStaInterface.UsdSubscribeConfig aidlConfig =
+                MainlineSupplicant.frameworkToHalUsdSubscribeConfig(frameworkConfig);
+        verifyUsdBaseConfigDefaultValues(aidlConfig.baseConfig);
     }
 }

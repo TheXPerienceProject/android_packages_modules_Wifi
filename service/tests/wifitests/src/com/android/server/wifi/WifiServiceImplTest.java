@@ -116,7 +116,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.validateMockitoUsage;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import android.Manifest;
@@ -1843,7 +1842,7 @@ public class WifiServiceImplTest extends WifiBaseTest {
     public void testSetWifiApConfigurationNullConfigNotSaved() throws Exception {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
         assertFalse(mWifiServiceImpl.setWifiApConfiguration(null, TEST_PACKAGE_NAME));
-        verify(mWifiApConfigStore, never()).setApConfiguration(isNull(SoftApConfiguration.class));
+        verify(mWifiApConfigStore, never()).setApConfiguration(isNull());
     }
 
     /**
@@ -1904,7 +1903,7 @@ public class WifiServiceImplTest extends WifiBaseTest {
     public void testSetSoftApConfigurationNullConfigNotSaved() throws Exception {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
         assertFalse(mWifiServiceImpl.setSoftApConfiguration(null, TEST_PACKAGE_NAME));
-        verify(mWifiApConfigStore, never()).setApConfiguration(isNull(SoftApConfiguration.class));
+        verify(mWifiApConfigStore, never()).setApConfiguration(isNull());
         verify(mActiveModeWarden, never()).updateSoftApConfiguration(any());
         verify(mWifiPermissionsUtil).checkConfigOverridePermission(anyInt());
     }
@@ -4528,7 +4527,7 @@ public class WifiServiceImplTest extends WifiBaseTest {
         changeLohsState(WIFI_AP_STATE_ENABLED, WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR);
 
         mLooper.dispatchAll();
-        verifyZeroInteractions(ignoreStubs(mLohsCallback));
+        verifyNoMoreInteractions(ignoreStubs(mLohsCallback));
     }
 
     /**
@@ -4719,7 +4718,7 @@ public class WifiServiceImplTest extends WifiBaseTest {
         // unregistered
         mWifiServiceImpl.updateInterfaceIpState(WIFI_IFACE_NAME, IFACE_IP_MODE_CONFIGURATION_ERROR);
         mLooper.dispatchAll();
-        verifyZeroInteractions(ignoreStubs(mLohsCallback));
+        verifyNoMoreInteractions(ignoreStubs(mLohsCallback));
     }
 
     /**
@@ -4757,7 +4756,7 @@ public class WifiServiceImplTest extends WifiBaseTest {
         clearInvocations(mLohsCallback);
 
         mWifiServiceImpl.updateInterfaceIpState(WIFI_IFACE_NAME, IFACE_IP_MODE_TETHERED);
-        verifyZeroInteractions(ignoreStubs(mLohsCallback));
+        verifyNoMoreInteractions(ignoreStubs(mLohsCallback));
     }
 
     /**
@@ -4768,7 +4767,7 @@ public class WifiServiceImplTest extends WifiBaseTest {
     public void testRegisterLocalOnlyHotspotRequestWhenStoppedDoesNotGetOnStoppedCallback()
             throws Exception {
         registerLOHSRequestFull();
-        verifyZeroInteractions(ignoreStubs(mLohsCallback));
+        verifyNoMoreInteractions(ignoreStubs(mLohsCallback));
     }
 
     /**
@@ -7927,7 +7926,7 @@ public class WifiServiceImplTest extends WifiBaseTest {
         startLohsAndTethering(true);
 
         // verify LOHS didn't get stopped
-        verifyZeroInteractions(ignoreStubs(mLohsCallback));
+        verifyNoMoreInteractions(ignoreStubs(mLohsCallback));
         verify(mActiveModeWarden, never()).stopSoftAp(anyInt());
     }
 
