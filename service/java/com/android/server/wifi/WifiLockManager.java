@@ -678,7 +678,7 @@ public class WifiLockManager {
 
         switch(wifiLock.mMode) {
             case WifiManager.WIFI_MODE_FULL_HIGH_PERF:
-                mWifiMetrics.addWifiLockAcqSession(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                mWifiMetrics.addWifiLockManagerAcqSession(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
                         uidsAndTags.first,
                         uidsAndTags.second,
                         mWifiPermissionsUtil.getWifiCallerType(wifiLock.getUid(),
@@ -696,7 +696,7 @@ public class WifiLockManager {
                 }
                 break;
             case WifiManager.WIFI_MODE_FULL_LOW_LATENCY:
-                mWifiMetrics.addWifiLockAcqSession(WifiManager.WIFI_MODE_FULL_LOW_LATENCY,
+                mWifiMetrics.addWifiLockManagerAcqSession(WifiManager.WIFI_MODE_FULL_LOW_LATENCY,
                         uidsAndTags.first,
                         uidsAndTags.second,
                         mWifiPermissionsUtil.getWifiCallerType(wifiLock.getUid(),
@@ -732,7 +732,7 @@ public class WifiLockManager {
                     return false;
                 }
                 uidsAndTags = WorkSourceUtil.getUidsAndTagsForWs(mHighPerfBlamedWorkSource);
-                mWifiMetrics.addWifiLockActiveSession(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                mWifiMetrics.addWifiLockManagerActiveSession(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
                         uidsAndTags.first,
                         uidsAndTags.second,
                         mClock.getElapsedSinceBootMillis() - mCurrentSessionStartTimeMs,
@@ -748,7 +748,7 @@ public class WifiLockManager {
                     return false;
                 }
                 uidsAndTags = WorkSourceUtil.getUidsAndTagsForWs(mLowLatencyBlamedWorkSource);
-                mWifiMetrics.addWifiLockActiveSession(WifiManager.WIFI_MODE_FULL_LOW_LATENCY,
+                mWifiMetrics.addWifiLockManagerActiveSession(WifiManager.WIFI_MODE_FULL_LOW_LATENCY,
                         uidsAndTags.first,
                         uidsAndTags.second,
                         mClock.getElapsedSinceBootMillis() - mCurrentSessionStartTimeMs,

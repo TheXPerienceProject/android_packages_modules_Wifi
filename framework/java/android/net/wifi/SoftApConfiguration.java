@@ -1421,6 +1421,46 @@ public final class SoftApConfiguration implements Parcelable {
             mIsClientIsolationEnabled = other.mIsClientIsolationEnabled;
         }
 
+       /**
+         * Builds the {@link SoftApConfiguration} without any check.
+         *
+         * @return A new {@link SoftApConfiguration}, as configured by previous method calls.
+         *
+         * @hide
+         */
+        @VisibleForTesting
+        @NonNull
+        public SoftApConfiguration buildWithoutCheck() {
+            return new SoftApConfiguration(
+                    mWifiSsid,
+                    mBssid,
+                    mPassphrase,
+                    mHiddenSsid,
+                    mChannels,
+                    mSecurityType,
+                    mMaxNumberOfClients,
+                    mAutoShutdownEnabled,
+                    mShutdownTimeoutMillis,
+                    mClientControlByUser,
+                    mBlockedClientList,
+                    mAllowedClientList,
+                    mMacRandomizationSetting,
+                    mBridgedModeOpportunisticShutdownEnabled,
+                    mIeee80211axEnabled,
+                    mIeee80211beEnabled,
+                    mIsUserConfiguration,
+                    mBridgedModeOpportunisticShutdownTimeoutMillis,
+                    mVendorElements,
+                    mPersistentRandomizedMacAddress,
+                    mAllowedAcsChannels2g,
+                    mAllowedAcsChannels5g,
+                    mAllowedAcsChannels6g,
+                    mMaxChannelBandwidth,
+                    mOweTransIfaceName, 
+                    mVendorData,
+                    mIsClientIsolationEnabled);
+        }
+
         /**
          * Builds the {@link SoftApConfiguration}.
          *
@@ -1447,6 +1487,10 @@ public final class SoftApConfiguration implements Parcelable {
                 mShutdownTimeoutMillis = 0; // Use 0 for legacy app.
             }
 
+            if (SdkLevel.isAtLeastB() && !mIeee80211axEnabled) {
+                // Force 11BE to false since 11ax has dependency with 11AX.
+                mIeee80211beEnabled = false;
+            }
             return new SoftApConfiguration(mWifiSsid, mBssid, mPassphrase,
                     mHiddenSsid, mChannels, mSecurityType, mMaxNumberOfClients,
                     mAutoShutdownEnabled, mShutdownTimeoutMillis, mClientControlByUser,
