@@ -134,6 +134,7 @@ python_test_host {
         "aware_lib_utils",
         "mobly",
         "wifi_aware_constants",
+        "platform-test-py-annotations",
     ],
     test_suites: [
         "general-tests",
@@ -176,6 +177,7 @@ python_test_host {
         "aware_lib_utils",
         "mobly",
         "wifi_aware_constants",
+        "platform-test-py-annotations",
     ],
     test_suites: [
         "general-tests",
@@ -196,6 +198,25 @@ python_test_host {
         "mobly",
         "wifi_aware_constants",
         "platform-test-py-annotations",
+    ],
+    test_suites: [
+        "general-tests",
+    ],
+    test_options: {
+        unit_test: false,
+        tags: ["mobly"],
+    },
+}
+
+python_test_host {
+    name: "WifiRttDisableTestCases",
+    main: "wifi_rtt_disable_test.py",
+    srcs: ["wifi_rtt_disable_test.py"],
+    device_common_data: [":wifi_aware_snippet_new"],
+    libs: [
+        "aware_lib_utils",
+        "mobly",
+        "wifi_aware_constants",
     ],
     test_suites: [
         "general-tests",
@@ -241,7 +262,10 @@ python_test_host {
         "wifi_aware_protocols_multi_country_test.py",
         "wifi_aware_protocols_test.py",
     ],
-    device_common_data: [":wifi_aware_snippet_new"],
+    device_common_data: [
+        ":wifi_aware_snippet_new",
+        ":wifi_mobly_snippet",
+    ],
     libs: [
         "aware_lib_utils",
         "mobly",

@@ -20,9 +20,14 @@ import android.system.wifi.mainline_supplicant.UsdMessageInfo;
 import android.system.wifi.mainline_supplicant.UsdServiceProtoType;
 
 /**
- * Callbacks for Unsynchronized Service Discovery (USD) operations.
+ * Callback interface exposed by the mainline supplicant service
+ * for each station mode interface (IStaInterface).
+ *
+ * Clients need to host an instance of this AIDL interface object and
+ * pass a reference of the object to the mainline supplicant via the
+ * corresponding |IStaInterface.registerCallback| method.
  */
-interface IUsdCallback {
+interface IStaInterfaceCallback {
     /**
      * Information about a USD discovery session with a specific peer.
      */
@@ -68,10 +73,11 @@ interface IUsdCallback {
     }
 
     /**
-     * Codes indicating the status of USD operations.
+     * Codes indicating the reason for terminating a USD session.
+     * Returned by |onUsdPublishTerminated| and |onUsdSubscribeTerminated|.
      */
     @Backing(type="int")
-    enum UsdReasonCode {
+    enum UsdTerminateReasonCode {
         /**
          * Unknown failure occurred.
          */
@@ -94,13 +100,32 @@ interface IUsdCallback {
     }
 
     /**
+     * Error codes returned by |onUsdPublishConfigFailed| and |onUsdSubscribeConfigFailed|.
+     */
+    @Backing(type="int")
+    enum UsdConfigErrorCode {
+        /**
+         * Unknown failure.
+         */
+        FAILURE_UNKNOWN = 0,
+        /**
+         * The requested operation timed out.
+         */
+        FAILURE_TIMEOUT = 1,
+        /**
+         * The requested operation is currently not available.
+         */
+        FAILURE_NOT_AVAILABLE = 2,
+    }
+
+    /**
      * Called in response to |IUsdInterface.startPublish| to indicate that the
      * publish session was started successfully.
      *
      * @param cmdId Identifier for the original request.
      * @param publishId Identifier for the publish session.
      */
-    void onPublishStarted(in int cmdId, in int publishId);
+    void onUsdPublishStarted(in int cmdId, in int publishId);
 
     /**
      * Called in response to |IUsdInterface.startSubscribe| to indicate that the
@@ -109,23 +134,25 @@ interface IUsdCallback {
      * @param cmdId Identifier for the original request.
      * @param subscribeId Identifier for the subscribe session.
      */
-    void onSubscribeStarted(in int cmdId, in int subscribeId);
+    void onUsdSubscribeStarted(in int cmdId, in int subscribeId);
 
     /**
      * Called in response to |IUsdInterface.startPublish| to indicate that the
      * publish session could not be configured.
      *
      * @param cmdId Identifier for the original request.
+     * @param errorCode Code indicating the failure reason.
      */
-    void onPublishConfigFailed(in int cmdId);
+    void onUsdPublishConfigFailed(in int cmdId, in UsdConfigErrorCode errorCode);
 
     /**
      * Called in response to |IUsdInterface.startSubscribe| to indicate that the
      * subscribe session could not be configured.
      *
      * @param cmdId Identifier for the original request.
+     * @param errorCode Code indicating the failure reason.
      */
-    void onSubscribeConfigFailed(in int cmdId);
+    void onUsdSubscribeConfigFailed(in int cmdId, in UsdConfigErrorCode errorCode);
 
     /**
      * Called in response to |IUsdInterface.cancelPublish| to indicate that the session
@@ -135,7 +162,7 @@ interface IUsdCallback {
      * @param publishId Identifier for the publish session.
      * @param reasonCode Code indicating the reason for the session cancellation.
      */
-    void onPublishTerminated(in int publishId, in UsdReasonCode reasonCode);
+    void onUsdPublishTerminated(in int publishId, in UsdTerminateReasonCode reasonCode);
 
     /**
      * Called in response to |IUsdInterface.cancelSubscribe| to indicate that the session
@@ -145,14 +172,14 @@ interface IUsdCallback {
      * @param subscribeId Identifier for the subscribe session.
      * @param reasonCode Code indicating the reason for the session cancellation.
      */
-    void onSubscribeTerminated(in int subscribeId, in UsdReasonCode reasonCode);
+    void onUsdSubscribeTerminated(in int subscribeId, in UsdTerminateReasonCode reasonCode);
 
     /**
      * Indicates that the publisher sent solicited publish message to the subscriber.
      *
      * @param info Instance of |UsdServiceDiscoveryInfo| containing information about the reply.
      */
-    void onPublishReplied(in UsdServiceDiscoveryInfo info);
+    void onUsdPublishReplied(in UsdServiceDiscoveryInfo info);
 
     /**
      * Indicates that a publisher was discovered. Only called if this device is acting as a
@@ -160,12 +187,12 @@ interface IUsdCallback {
      *
      * @param info Instance of |UsdServiceDiscoveryInfo| containing information about the service.
      */
-    void onServiceDiscovered(in UsdServiceDiscoveryInfo info);
+    void onUsdServiceDiscovered(in UsdServiceDiscoveryInfo info);
 
     /**
      * Indicates that a message was received on an active USD link.
      *
      * @param messageInfo Information about the message that was received.
      */
-    void onMessageReceived(in UsdMessageInfo messageInfo);
+    void onUsdMessageReceived(in UsdMessageInfo messageInfo);
 }

@@ -521,8 +521,15 @@ public class WifiApConfigStore {
             configBuilder.setAutoShutdownEnabled(false);
             try {
                 if (ApConfigUtil.isWpa3SaeSupported(context)) {
-                    configBuilder.setPassphrase(generatePassword(),
-                            SECURITY_TYPE_WPA3_SAE_TRANSITION);
+                    if (customConfig != null
+                            && customConfig.getBand() == SoftApConfiguration.BAND_6GHZ) {
+                        // Requested band is limited to 6GHz only, use SAE.
+                        configBuilder.setPassphrase(generatePassword(),
+                                SECURITY_TYPE_WPA3_SAE);
+                    } else {
+                        configBuilder.setPassphrase(generatePassword(),
+                                SECURITY_TYPE_WPA3_SAE_TRANSITION);
+                    }
                 } else {
                     configBuilder.setPassphrase(generatePassword(),
                             SECURITY_TYPE_WPA2_PSK);
@@ -726,7 +733,7 @@ public class WifiApConfigStore {
         }
 
         // Hostapd requires 11AX to configure 11BE
-        if (SdkLevel.isAtLeastT() && apConfig.isIeee80211beEnabled()
+        if (SdkLevel.isAtLeastB() && apConfig.isIeee80211beEnabled()
                 && !apConfig.isIeee80211axEnabledInternal()) {
             Log.d(TAG, "11AX is required when configuring 11BE");
             return false;

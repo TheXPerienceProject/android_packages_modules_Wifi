@@ -18,9 +18,12 @@ package com.android.server.wifi.rtt;
 
 import android.net.MacAddress;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiSsid;
+import android.net.wifi.rtt.PasnConfig;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.ResponderConfig;
+import android.net.wifi.rtt.SecureRangingConfig;
 import android.util.Pair;
 
 import java.util.ArrayList;
@@ -73,6 +76,90 @@ public class RttTestUtils {
         // Changing default RTT burst size to a valid, but maximum, value
         builder.setRttBurstSize(RangingRequest.getMaxRttBurstSize());
         builder.addWifiAwarePeer(mac1);
+        return builder.build();
+    }
+
+    /**
+     * Get placeholder request for secure ranging.
+     *
+     * @param securityMode Security mode to use.
+     * @return Returns a ranging request with peers supporting SAE with password, SAE with no
+     * password, Unauthenticated PASN and Open security.
+     */
+    public static RangingRequest getDummySecureRangingRequest(
+            @RangingRequest.SecurityMode int securityMode) {
+        RangingRequest.Builder builder = new RangingRequest.Builder().setSecurityMode(securityMode);
+        // SAE
+        PasnConfig pasnConfig = new PasnConfig
+                .Builder(PasnConfig.AKM_SAE, PasnConfig.CIPHER_GCMP_256)
+                .setWifiSsid(WifiSsid.fromString("\"TEST_SSID\""))
+                .setPassword("TEST_PASSWORD")
+                .setPasnComebackCookie(new byte[]{1, 2, 3, 4, 5})
+                .build();
+        SecureRangingConfig secureRangingConfig = new SecureRangingConfig
+                .Builder(pasnConfig)
+                .setRangingFrameProtectionEnabled(true)
+                .setSecureHeLtfEnabled(true)
+                .build();
+        ResponderConfig config = new ResponderConfig.Builder()
+                .setMacAddress(MacAddress.fromString("00:11:22:33:44:55"))
+                .setResponderType(ResponderConfig.RESPONDER_AP)
+                .setChannelWidth(ScanResult.CHANNEL_WIDTH_80MHZ)
+                .setPreamble(ScanResult.PREAMBLE_HE)
+                .set80211azNtbSupported(true)
+                .setSecureRangingConfig(secureRangingConfig)
+                .build();
+        builder.addResponder(config);
+
+        // SAE with no password configured
+        pasnConfig = new PasnConfig
+                .Builder(PasnConfig.AKM_SAE, PasnConfig.CIPHER_GCMP_256)
+                .setWifiSsid(WifiSsid.fromString("\"TEST_SSID\""))
+                .build();
+        secureRangingConfig = new SecureRangingConfig
+                .Builder(pasnConfig)
+                .setRangingFrameProtectionEnabled(true)
+                .setSecureHeLtfEnabled(true)
+                .build();
+        config = new ResponderConfig.Builder()
+                .setMacAddress(MacAddress.fromString("00:11:22:33:44:56"))
+                .setResponderType(ResponderConfig.RESPONDER_AP)
+                .setChannelWidth(ScanResult.CHANNEL_WIDTH_80MHZ)
+                .setPreamble(ScanResult.PREAMBLE_HE)
+                .set80211azNtbSupported(true)
+                .setSecureRangingConfig(secureRangingConfig).build();
+        builder.addResponder(config);
+
+        // Unauthenticated PASN
+        pasnConfig = new PasnConfig
+                .Builder(PasnConfig.AKM_PASN, PasnConfig.CIPHER_GCMP_256).build();
+        secureRangingConfig = new SecureRangingConfig
+                .Builder(pasnConfig)
+                .setRangingFrameProtectionEnabled(true)
+                .setSecureHeLtfEnabled(true)
+                .build();
+        config = new ResponderConfig
+                .Builder()
+                .setMacAddress(MacAddress.fromString("00:11:22:33:44:57"))
+                .setResponderType(ResponderConfig.RESPONDER_AP)
+                .setChannelWidth(ScanResult.CHANNEL_WIDTH_80MHZ)
+                .setPreamble(ScanResult.PREAMBLE_HE)
+                .set80211azNtbSupported(true)
+                .setSecureRangingConfig(secureRangingConfig)
+                .build();
+        builder.addResponder(config);
+
+        // Open mode
+        config = new ResponderConfig
+                .Builder()
+                .setMacAddress(MacAddress.fromString("00:11:22:33:44:58"))
+                .setResponderType(ResponderConfig.RESPONDER_AP)
+                .setChannelWidth(ScanResult.CHANNEL_WIDTH_80MHZ)
+                .setPreamble(ScanResult.PREAMBLE_HE)
+                .set80211azNtbSupported(true)
+                .build();
+        builder.addResponder(config);
+
         return builder.build();
     }
 
@@ -183,19 +270,6 @@ public class RttTestUtils {
 
         if (request != null) {
             for (ResponderConfig peer : request.mRttPeers) {
-                halResults.add(new RangingResult.Builder()
-                        .setStatus(RangingResult.STATUS_SUCCESS)
-                        .setMacAddress(peer.getMacAddress())
-                        .setDistanceMm(rangeCmBase)
-                        .setDistanceStdDevMm(rangeStdDevCmBase)
-                        .setRssi(rssiBase)
-                        .setNumAttemptedMeasurements(8)
-                        .setNumSuccessfulMeasurements(5)
-                        .setRangingTimestampMillis(rangeTimestampBase)
-                        .set80211mcMeasurement(true)
-                        .setMeasurementChannelFrequencyMHz(5180)
-                        .setMeasurementBandwidth(ScanResult.CHANNEL_WIDTH_40MHZ)
-                        .build());
                 RangingResult.Builder builder = new RangingResult.Builder()
                         .setStatus(RangingResult.STATUS_SUCCESS)
                         .setDistanceMm(rangeCmBase++)
@@ -207,13 +281,24 @@ public class RttTestUtils {
                         .set80211mcMeasurement(true)
                         .setMeasurementChannelFrequencyMHz(5180)
                         .setMeasurementBandwidth(ScanResult.CHANNEL_WIDTH_40MHZ);
+                if (peer.getSecureRangingConfig() != null) {
+                    builder.setRangingAuthenticated(true);
+                    builder.setRangingFrameProtected(true);
+                    builder.setSecureHeLtfEnabled(true);
+                    builder.setSecureHeLtfProtocolVersion(1);
+                }
+                halResults.add(builder.setMacAddress(peer.getMacAddress()).build());
                 if (peer.peerHandle == null) {
                     builder.setMacAddress(peer.getMacAddress());
                 } else {
+                    // Make sure MAC address null when peer handle is set.
+                    builder.setMacAddress(null);
                     builder.setPeerHandle(peer.peerHandle);
                 }
-                RangingResult rangingResult = builder.build();
-                results.add(rangingResult);
+                results.add(builder.build());
+                rangeCmBase++;
+                rangeStdDevCmBase++;
+                rssiBase++;
             }
         } else {
             results.add(new RangingResult.Builder()

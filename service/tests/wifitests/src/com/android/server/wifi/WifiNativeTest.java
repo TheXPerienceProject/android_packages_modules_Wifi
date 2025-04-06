@@ -75,6 +75,7 @@ import com.android.dx.mockito.inline.extended.ExtendedMockito;
 import com.android.modules.utils.build.SdkLevel;
 import com.android.server.wifi.coex.CoexManager;
 import com.android.server.wifi.hal.WifiChip;
+import com.android.server.wifi.mainline_supplicant.MainlineSupplicant;
 import com.android.server.wifi.p2p.WifiP2pNative;
 import com.android.server.wifi.proto.WifiStatsLog;
 import com.android.server.wifi.util.NativeUtil;
@@ -264,6 +265,11 @@ public class WifiNativeTest extends WifiBaseTest {
     private static final RadioChainInfo MOCK_NATIVE_RADIO_CHAIN_INFO_2 = new RadioChainInfo(0, -78);
     private static final WorkSource TEST_WORKSOURCE = new WorkSource();
     private static final WorkSource TEST_WORKSOURCE2 = new WorkSource();
+    private static final int USD_MAX_SSI_LEN = 1024;
+    private static final int USD_MAX_SERVICE_NAME_LEN = 255;
+    private static final int USD_MAX_MATCH_FILTER_LEN = 255;
+    private static final int USD_MAX_NUM_PUBLISH_SESSIONS = 10;
+    private static final int USD_MAX_NUM_SUBSCRIBE_SESSIONS = 10;
 
     MockResources mResources;
 
@@ -271,6 +277,7 @@ public class WifiNativeTest extends WifiBaseTest {
     @Mock private WifiVendorHal mWifiVendorHal;
     @Mock private WifiNl80211Manager mWificondControl;
     @Mock private SupplicantStaIfaceHal mStaIfaceHal;
+    @Mock private MainlineSupplicant mMainlineSupplicant;
     @Mock private HostapdHal mHostapdHal;
     @Mock private WifiMonitor mWifiMonitor;
     @Mock private PropertyService mPropertyService;
@@ -336,6 +343,9 @@ public class WifiNativeTest extends WifiBaseTest {
         when(mHostapdHal.isInitializationComplete()).thenReturn(true);
         when(mHostapdHal.registerDeathHandler(any())).thenReturn(true);
 
+        when(mMainlineSupplicant.isAvailable()).thenReturn(true);
+        when(mMainlineSupplicant.startService()).thenReturn(true);
+
         when(mWifiInjector.makeNetdWrapper()).thenReturn(mNetdWrapper);
         when(mWifiInjector.getCoexManager()).thenReturn(mCoexManager);
 
@@ -346,6 +356,7 @@ public class WifiNativeTest extends WifiBaseTest {
         when(mWifiInjector.getWifiP2pNative()).thenReturn(mWifiP2pNative);
         mResources = getMockResources();
         mResources.setBoolean(R.bool.config_wifiNetworkCentricQosPolicyFeatureEnabled, false);
+        mResources.setBoolean(R.bool.config_wifiUsdPublisherSupported, false);
         when(mContext.getResources()).thenReturn(mResources);
         when(mSettingsConfigStore.get(eq(WIFI_NATIVE_EXTENDED_SUPPORTED_FEATURES)))
                 .thenReturn(WIFI_TEST_FEATURE.toLongArray());
@@ -368,7 +379,7 @@ public class WifiNativeTest extends WifiBaseTest {
         mWifiNative = new WifiNative(
                 mWifiVendorHal, mStaIfaceHal, mHostapdHal, mWificondControl,
                 mWifiMonitor, mPropertyService, mWifiMetrics,
-                mHandler, mRandom, mBuildProperties, mWifiInjector);
+                mHandler, mRandom, mBuildProperties, mWifiInjector, mMainlineSupplicant);
         mWifiNative.enableVerboseLogging(true, true);
         mWifiNative.initialize();
         assertNull(mWifiNative.mUnknownAkmMap);
@@ -1863,7 +1874,8 @@ public class WifiNativeTest extends WifiBaseTest {
                         mHandler,
                         mRandom,
                         mBuildProperties,
-                        mWifiInjector);
+                        mWifiInjector,
+                        mMainlineSupplicant);
         assertNull(wifiNativeInstance.mUnknownAkmMap);
 
         // Test that UnknownAkmMap is not set if non-integer values are added in the config.
@@ -1881,7 +1893,8 @@ public class WifiNativeTest extends WifiBaseTest {
                         mHandler,
                         mRandom,
                         mBuildProperties,
-                        mWifiInjector);
+                        mWifiInjector,
+                        mMainlineSupplicant);
         assertNull(wifiNativeInstance.mUnknownAkmMap);
 
         // Test that UnknownAkmMap is not set when an invalid AKM is set in the known AKM field
@@ -1900,7 +1913,8 @@ public class WifiNativeTest extends WifiBaseTest {
                         mHandler,
                         mRandom,
                         mBuildProperties,
-                        mWifiInjector);
+                        mWifiInjector,
+                        mMainlineSupplicant);
         assertNull(wifiNativeInstance.mUnknownAkmMap);
 
         // Test that UnknownAkmMap is set for a valid configuration
@@ -1919,7 +1933,8 @@ public class WifiNativeTest extends WifiBaseTest {
                         mHandler,
                         mRandom,
                         mBuildProperties,
-                        mWifiInjector);
+                        mWifiInjector,
+                        mMainlineSupplicant);
         assertEquals(1, wifiNativeInstance.mUnknownAkmMap.size());
         assertEquals(ScanResult.KEY_MGMT_EAP, wifiNativeInstance.mUnknownAkmMap.get(9846784));
 
@@ -1941,7 +1956,8 @@ public class WifiNativeTest extends WifiBaseTest {
                         mHandler,
                         mRandom,
                         mBuildProperties,
-                        mWifiInjector);
+                        mWifiInjector,
+                        mMainlineSupplicant);
         assertEquals(2, wifiNativeInstance.mUnknownAkmMap.size());
         assertEquals(ScanResult.KEY_MGMT_EAP, wifiNativeInstance.mUnknownAkmMap.get(9846784));
         assertEquals(ScanResult.KEY_MGMT_SAE_EXT_KEY, wifiNativeInstance.mUnknownAkmMap.get(1234));
@@ -2014,12 +2030,58 @@ public class WifiNativeTest extends WifiBaseTest {
         mWifiNative = new WifiNative(
                 mWifiVendorHal, mStaIfaceHal, mHostapdHal, mWificondControl,
                 mWifiMonitor, mPropertyService, mWifiMetrics,
-                mHandler, mRandom, mBuildProperties, mWifiInjector);
+                mHandler, mRandom, mBuildProperties, mWifiInjector, mMainlineSupplicant);
         assertTrue(mWifiNative.isMLDApSupportMLO());
         when(Flags.mloSap()).thenReturn(false);
         assertFalse(mWifiNative.isMLDApSupportMLO());
         when(Flags.mloSap()).thenReturn(true);
         when(mWifiGlobals.isMLDApSupported()).thenReturn(false);
         assertFalse(mWifiNative.isMLDApSupportMLO());
+    }
+
+    /**
+     * Test USD capabilities when config_wifiUsdPublisherSupported = false in the overlay.
+     */
+    @Test
+    public void testUsdPublishSupportOverriddenByOverlay() throws Exception {
+        mResources.setBoolean(R.bool.config_wifiUsdPublisherSupported, false);
+        SupplicantStaIfaceHal.UsdCapabilitiesInternal usdCapabilities =
+                new SupplicantStaIfaceHal.UsdCapabilitiesInternal(true, true, USD_MAX_SSI_LEN,
+                        USD_MAX_SERVICE_NAME_LEN, USD_MAX_MATCH_FILTER_LEN,
+                        USD_MAX_NUM_PUBLISH_SESSIONS, USD_MAX_NUM_SUBSCRIBE_SESSIONS);
+
+        when(mStaIfaceHal.getUsdCapabilities(WIFI_IFACE_NAME)).thenReturn(usdCapabilities);
+        mWifiNative.setupInterfaceForClientInScanMode(null, TEST_WORKSOURCE,
+                mConcreteClientModeManager);
+        SupplicantStaIfaceHal.UsdCapabilitiesInternal halUsdCapabilities =
+                mWifiNative.getUsdCapabilities();
+        // Publisher is disabled even though the device is capable of supporting.
+        assertFalse(halUsdCapabilities.isUsdPublisherSupported);
+    }
+
+    /**
+     * Test USD capabilities when config_wifiUsdPublisherSupported = true in the overlay.
+     */
+    @Test
+    public void testGetUsdCapabilities() {
+        mResources.setBoolean(R.bool.config_wifiUsdPublisherSupported, true);
+        SupplicantStaIfaceHal.UsdCapabilitiesInternal usdCapabilities =
+                new SupplicantStaIfaceHal.UsdCapabilitiesInternal(true, true, USD_MAX_SSI_LEN,
+                        USD_MAX_SERVICE_NAME_LEN, USD_MAX_MATCH_FILTER_LEN,
+                        USD_MAX_NUM_PUBLISH_SESSIONS, USD_MAX_NUM_SUBSCRIBE_SESSIONS);
+
+        when(mStaIfaceHal.getUsdCapabilities(WIFI_IFACE_NAME)).thenReturn(usdCapabilities);
+        mWifiNative.setupInterfaceForClientInScanMode(null, TEST_WORKSOURCE,
+                mConcreteClientModeManager);
+        SupplicantStaIfaceHal.UsdCapabilitiesInternal halUsdCapabilities =
+                mWifiNative.getUsdCapabilities();
+        // Publisher is supported and enabled
+        assertTrue(halUsdCapabilities.isUsdPublisherSupported);
+        assertTrue(halUsdCapabilities.isUsdSubscriberSupported);
+        assertEquals(USD_MAX_SSI_LEN, halUsdCapabilities.maxLocalSsiLengthBytes);
+        assertEquals(USD_MAX_SERVICE_NAME_LEN, halUsdCapabilities.maxServiceNameLengthBytes);
+        assertEquals(USD_MAX_MATCH_FILTER_LEN, halUsdCapabilities.maxMatchFilterLengthBytes);
+        assertEquals(USD_MAX_NUM_PUBLISH_SESSIONS, halUsdCapabilities.maxNumPublishSessions);
+        assertEquals(USD_MAX_NUM_SUBSCRIBE_SESSIONS, halUsdCapabilities.maxNumSubscribeSessions);
     }
 }

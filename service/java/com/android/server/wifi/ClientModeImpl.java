@@ -219,7 +219,7 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
     private static final int IPCLIENT_SHUTDOWN_TIMEOUT_MS = 60_000; // 60 seconds
     private static final int NETWORK_AGENT_TEARDOWN_DELAY_MS = 5_000; // Max teardown delay.
     private static final int DISASSOC_AP_BUSY_DISABLE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-    @VisibleForTesting public static final long CONNECTING_WATCHDOG_TIMEOUT_MS = 30_000; // 30 secs.
+    @VisibleForTesting public static final long CONNECTING_WATCHDOG_TIMEOUT_MS = 8_000; // 8 secs.
     public static final int PROVISIONING_TIMEOUT_FILS_CONNECTION_MS = 36_000; // 36 secs.
     @VisibleForTesting
     public static final String ARP_TABLE_PATH = "/proc/net/arp";
@@ -287,6 +287,7 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
     private final long mId;
 
     private boolean mScreenOn = false;
+    private boolean mIsDeviceIdle = false;
 
     private final String mInterfaceName;
     private final ConcreteClientModeManager mClientModeManager;
@@ -1534,6 +1535,17 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
                 mWifiMetrics.setNominatorForNetwork(netId,
                         WifiMetricsProto.ConnectionEvent.NOMINATOR_MANUAL);
             }
+            if (isPrimary()) {
+                WifiConfiguration config = getConnectedWifiConfigurationInternal();
+                if (config != null && getClientRoleForMetrics(config)
+                        == WifiStatsLog.WIFI_CONNECTION_RESULT_REPORTED__ROLE__ROLE_CLIENT_LOCAL_ONLY) {
+                    // User manually trigger switch from a local-only network to primary.
+                    // Temporarily block re-connection to the local-only network to avoid app
+                    // automatically connecting back to it.
+                    mWifiConfigManager.userTemporarilyDisabledNetwork(config.SSID,
+                            Process.WIFI_UID);
+                }
+            }
             startConnectToNetwork(netId, uid, SUPPLICANT_BSSID_ANY);
         }
     }
@@ -2668,6 +2680,7 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
 
     private void handleScreenStateChanged(boolean screenOn) {
         mScreenOn = screenOn;
+        considerChangingFirmwareRoaming();
         if (mVerboseLoggingEnabled) {
             logd(" handleScreenStateChanged Enter: screenOn=" + screenOn
                     + " mSuspendOptimizationsEnabled="
@@ -3661,7 +3674,7 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
         // Update link layer stats
         getWifiLinkLayerStats();
 
-        if (mWifiP2pConnection.isConnected() && !mWifiP2pConnection.isP2pInWaitingState()) {
+        if (mWifiP2pConnection.isConnected() && !mWifiP2pConnection.isP2pInDisabledState()) {
             // P2P discovery breaks DHCP, so shut it down in order to get through this.
             // Once P2P service receives this message and processes it accordingly, it is supposed
             // to send arg2 (i.e. CMD_PRE_DHCP_ACTION_COMPLETE) in a new Message.what back to
@@ -8528,7 +8541,7 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
         return status == WifiNative.SET_FIRMWARE_ROAMING_SUCCESS;
     }
 
-    private void considerChangingFirmwareRoaming(boolean isIdle) {
+    private void considerChangingFirmwareRoaming() {
         if (mClientModeManager.getRole() != ROLE_CLIENT_PRIMARY) {
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Idle mode changed: iface " + mInterfaceName + " is not primary.");
@@ -8544,7 +8557,7 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
             }
             return;
         }
-        if (isIdle) {
+        if (mIsDeviceIdle && !mScreenOn) {
             // disable firmware roaming if in idle mode
             if (mVerboseLoggingEnabled) {
                 Log.v(TAG, "Idle mode changed: iface " + mInterfaceName
@@ -8553,9 +8566,9 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
             enableRoaming(false);
             return;
         }
-        // Exiting idle mode so re-enable firmware roaming, but only if the current use-case is
-        // not the local-only use-case. The local-only use-case requires firmware roaming to be
-        // always disabled.
+        // Exiting idle mode or screen is turning on, so re-enable firmware roaming, but only if the
+        // current use-case is not the local-only use-case. The local-only use-case requires
+        // firmware roaming to be always disabled.
         WifiConfiguration config = getConnectedWifiConfigurationInternal();
         if (config == null) {
             config = getConnectingWifiConfigurationInternal();
@@ -8574,7 +8587,8 @@ public class ClientModeImpl extends StateMachine implements ClientMode {
 
     @Override
     public void onIdleModeChanged(boolean isIdle) {
-        considerChangingFirmwareRoaming(isIdle);
+        mIsDeviceIdle = isIdle;
+        considerChangingFirmwareRoaming();
     }
 
     @Override

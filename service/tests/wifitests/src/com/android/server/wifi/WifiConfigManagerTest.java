@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static android.net.wifi.WifiConfiguration.SECURITY_TYPE_PSK;
+import static android.net.wifi.WifiConfiguration.SECURITY_TYPE_SAE;
 import static android.net.wifi.WifiManager.AddNetworkResult.STATUS_INVALID_CONFIGURATION_ENTERPRISE;
 
 import static com.android.server.wifi.TestUtil.createCapabilityBitset;
@@ -31,7 +32,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
@@ -8117,7 +8118,7 @@ public class WifiConfigManagerTest extends WifiBaseTest {
         verifyAddNetworkToWifiConfigManager(openNetwork);
         NetworkUpdateResult result =
                 mWifiConfigManager.addOrUpdateNetwork(openNetwork, TEST_CREATOR_UID);
-        verify(mListener, never()).onNetworkAdded(anyObject());
+        verify(mListener, never()).onNetworkAdded(any());
     }
 
     private int verifyAddNetwork(WifiConfiguration config, boolean expectNew) {
@@ -8501,5 +8502,34 @@ public class WifiConfigManagerTest extends WifiBaseTest {
         config.setSendDhcpHostnameEnabled(false);
         result = updateNetworkToWifiConfigManager(config);
         assertFalse(result.isSuccess());
+    }
+
+    /**
+     * Verify that the configured network with password is correctly retrieved using SSID and Key
+     * management.
+     */
+    @Test
+    public void testConfiguredNetworkWithPassword() {
+
+        NetworkSelectionStatus.Builder builder = new NetworkSelectionStatus.Builder();
+        NetworkSelectionStatus networkSelectionStatus = builder.build();
+        SecurityParams params = SecurityParams.createSecurityParamsBySecurityType(
+                SECURITY_TYPE_SAE);
+        networkSelectionStatus.setCandidateSecurityParams(params);
+        WifiConfiguration saeNetwork = WifiConfigurationTestUtil.createSaeNetwork(TEST_SSID);
+        saeNetwork.setNetworkSelectionStatus(networkSelectionStatus);
+        NetworkUpdateResult result  = verifyAddNetworkToWifiConfigManager(saeNetwork);
+
+        // Get the configured network with password
+        WifiConfiguration wifiConfig = mWifiConfigManager.getConfiguredNetworkWithPassword(
+                WifiSsid.fromString(TEST_SSID), SECURITY_TYPE_SAE);
+        // Test the retrieved network is the same network that was added for TEST_SSID and SAE
+        assertNotNull(wifiConfig);
+        assertEquals(saeNetwork.networkId, result.getNetworkId());
+        assertEquals(WifiConfigurationTestUtil.TEST_PSK, wifiConfig.preSharedKey);
+        wifiConfig = mWifiConfigManager.getConfiguredNetworkWithPassword(
+                WifiSsid.fromString(TEST_SSID), SECURITY_TYPE_PSK);
+        // Test there is no network with TEST_SSID and FT_PSK
+        assertNull(wifiConfig);
     }
 }
