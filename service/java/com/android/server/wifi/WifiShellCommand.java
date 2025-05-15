@@ -21,6 +21,7 @@ import static android.net.NetworkCapabilities.NET_CAPABILITY_OEM_PAID;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_OEM_PRIVATE;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_TRUSTED;
 import static android.net.NetworkCapabilities.TRANSPORT_WIFI;
+import static android.net.TetheringManager.TETHERING_WIFI;
 import static android.net.wifi.WifiConfiguration.METERED_OVERRIDE_METERED;
 import static android.net.wifi.WifiManager.ACTION_REMOVE_SUGGESTION_DISCONNECT;
 import static android.net.wifi.WifiManager.ACTION_REMOVE_SUGGESTION_LINGER;
@@ -52,6 +53,9 @@ import android.net.MacAddress;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
+import android.net.TetheringManager;
+import android.net.TetheringManager.StartTetheringCallback;
+import android.net.TetheringManager.TetheringRequest;
 import android.net.wifi.IActionListener;
 import android.net.wifi.IDppCallback;
 import android.net.wifi.ILastCallerListener;
@@ -923,9 +927,35 @@ public class WifiShellCommand extends BasicShellCommandHandler {
                     SoftApCallbackProxy softApCallback =
                             new SoftApCallbackProxy(pw, countDownLatch);
                     mWifiService.registerSoftApCallback(softApCallback);
-                    if (!mWifiService.startTetheredHotspot(config, SHELL_PACKAGE_NAME)) {
-                        pw.println("Soft AP failed to start. Please check config parameters");
+                    // Starting in B, a DHCP server will not be started for AP ifaces that weren't
+                    // requested by TetheringManager#startTethering.
+                    // TODO: This provides internet access on the AP iface if there is a suitable
+                    //       upstream available. This matches historical behavior, but consider
+                    //       starting the IpServer in local-only mode since the current clients of
+                    //       this command don't need to verify internet connection.
+                    if (SdkLevel.isAtLeastB()) {
+                        mContext.getSystemService(TetheringManager.class).startTethering(
+                                new TetheringRequest.Builder(TETHERING_WIFI)
+                                        .setSoftApConfiguration(config)
+                                        .build(),
+                                mContext.getMainExecutor(),
+                                new StartTetheringCallback() {
+                                    @Override
+                                    public void onTetheringStarted() {
+                                        Log.i(TAG, "Tethering started successfully");
+                                    }
+
+                                    @Override
+                                    public void onTetheringFailed(int errorCode) {
+                                        Log.i(TAG, "Tethering failed with error: " + errorCode);
+                                    }
+                                });
+                    } else {
+                        if (!mWifiService.startTetheredHotspot(config, SHELL_PACKAGE_NAME)) {
+                            pw.println("Soft AP failed to start. Please check config parameters");
+                        }
                     }
+
                     // Wait for softap to start and complete callback
                     countDownLatch.await(10000, TimeUnit.MILLISECONDS);
                     mWifiService.unregisterSoftApCallback(softApCallback);
