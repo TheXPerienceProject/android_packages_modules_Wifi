@@ -6963,6 +6963,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         .setGroupClientIpProvisioningMode(
                                 GROUP_CLIENT_IP_PROVISIONING_MODE_IPV6_LINK_LOCAL)
                         .setAuthorizeConnectionFromPeerEnabled(true)
+                        .enablePersistentMode(true)
                         .build();
                 if (provDisc.getVendorData() != null) {
                     mSavedPeerConfig.setVendorData(provDisc.getVendorData());
