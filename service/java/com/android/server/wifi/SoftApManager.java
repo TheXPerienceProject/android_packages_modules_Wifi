@@ -1648,6 +1648,16 @@ public class SoftApManager implements ActiveModeManager {
                             instanceName, mIsUsingMlo);
                     // Remove the info and update it.
                     updateSoftApInfo(mCurrentSoftApInfoMap.get(instanceName), true);
+                    return;
+                }
+                List<String> bridgedApInstances =
+                        mWifiNative.getBridgedApInstances(mApInterfaceName);
+                if (bridgedApInstances != null && bridgedApInstances.contains(
+                        instanceName)) {
+                    Log.i(getTag(), "remove instance " + instanceName
+                            + " from bridged iface " + mApInterfaceName);
+                    mWifiNative.removeIfaceInstanceFromBridgedApIface(mApInterfaceName,
+                            instanceName, mIsUsingMlo);
                 }
             }
 
