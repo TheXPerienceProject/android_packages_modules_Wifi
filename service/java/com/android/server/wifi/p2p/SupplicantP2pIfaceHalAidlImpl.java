@@ -2998,8 +2998,9 @@ public class SupplicantP2pIfaceHalAidlImpl implements ISupplicantP2pIfaceHal {
                 aidlUsdBasedServiceDiscoveryConfig.serviceName = usdServiceConfig.getServiceName();
                 aidlUsdBasedServiceDiscoveryConfig.serviceProtocolType = usdServiceConfig
                         .getServiceProtocolType();
-                aidlUsdBasedServiceDiscoveryConfig.serviceSpecificInfo = usdServiceConfig
-                        .getServiceSpecificInfo();
+                aidlUsdBasedServiceDiscoveryConfig.serviceSpecificInfo =
+                        usdServiceConfig.getServiceSpecificInfo() != null
+                                ? usdServiceConfig.getServiceSpecificInfo() : new byte[0];
                 if (discoveryConfig.getBand() != ScanResult.UNSPECIFIED) {
                     aidlUsdBasedServiceDiscoveryConfig.bandMask =
                             scanResultBandMaskToSupplicantHalWifiBandMask(
@@ -3007,8 +3008,9 @@ public class SupplicantP2pIfaceHalAidlImpl implements ISupplicantP2pIfaceHal {
                 } else {
                     aidlUsdBasedServiceDiscoveryConfig.bandMask = 0;
                 }
-                aidlUsdBasedServiceDiscoveryConfig.frequencyListMhz = discoveryConfig
-                        .getFrequenciesMhz();
+                aidlUsdBasedServiceDiscoveryConfig.frequencyListMhz =
+                            discoveryConfig.getFrequenciesMhz() != null
+                                    ? discoveryConfig.getFrequenciesMhz() : new int[0];
                 aidlUsdBasedServiceDiscoveryConfig.timeoutInSeconds = timeoutInSeconds;
                 return mISupplicantP2pIface.startUsdBasedServiceDiscovery(
                         aidlUsdBasedServiceDiscoveryConfig);
@@ -3074,8 +3076,9 @@ public class SupplicantP2pIfaceHalAidlImpl implements ISupplicantP2pIfaceHal {
                 aidlServiceAdvertisementConfig.serviceName = usdServiceConfig.getServiceName();
                 aidlServiceAdvertisementConfig.serviceProtocolType = usdServiceConfig
                         .getServiceProtocolType();
-                aidlServiceAdvertisementConfig.serviceSpecificInfo = usdServiceConfig
-                        .getServiceSpecificInfo();
+                aidlServiceAdvertisementConfig.serviceSpecificInfo =
+                        usdServiceConfig.getServiceSpecificInfo() != null
+                                ? usdServiceConfig.getServiceSpecificInfo() : new byte[0];
                 aidlServiceAdvertisementConfig.frequencyMHz = advertisementConfig.getFrequencyMhz();
                 aidlServiceAdvertisementConfig.timeoutInSeconds = timeoutInSeconds;
                 return mISupplicantP2pIface.startUsdBasedServiceAdvertisement(
